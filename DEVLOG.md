@@ -154,6 +154,106 @@ main.py
 
 ---
 
+### Day 3 — 2026-06-04
+
+#### What was built
+
+**database.py**
+- In-memory mock for SQL DB with full real SQL code written in comments
+- Two data structures mirroring the actual DB tables:
+  - `_conversations` dict — stores conversation metadata per `conversation_id`
+  - `_messages` list — flat ordered list of all messages across all conversations
+- Functions:
+  - `create_conversation()` — creates new conversation record on first message
+  - `conversation_exists()` — checks if conversation is already registered
+  - `save_message()` — logs a message with `expires_at = now + 30 days`, updates `last_active_at`
+  - `get_conversations_by_user()` — returns all non-expired conversations for a user
+  - `get_messages_by_conversation()` — returns all non-expired messages in order for a conversation
+- Real SQL schema written in comments — ready to run on actual DB when access is available
+
+**SQL Schema (in comments, ready to deploy):**
+```sql
+CREATE TABLE conversations (
+    id               VARCHAR(36)  PRIMARY KEY,
+    conversation_id  VARCHAR(100) UNIQUE NOT NULL,
+    user_id          VARCHAR(100) NOT NULL,
+    started_at       DATETIME     NOT NULL,
+    last_active_at   DATETIME     NOT NULL,
+    expires_at       DATETIME     NOT NULL
+);
+
+CREATE TABLE messages (
+    id               VARCHAR(36)  PRIMARY KEY,
+    conversation_id  VARCHAR(100) NOT NULL REFERENCES conversations(conversation_id),
+    role             VARCHAR(20)  NOT NULL,
+    content          TEXT         NOT NULL,
+    intent_category  VARCHAR(50),
+    created_at       DATETIME     NOT NULL,
+    expires_at       DATETIME     NOT NULL
+);
+```
+
+**cache.py**
+- In-memory mock for Redis session store with real Redis code written in comments
+- `_sessions` dict acts as the Redis store — keyed by `conversation_id`
+- Functions:
+  - `load_history()` — returns full message list for a session, empty list if new
+  - `save_history()` — overwrites entire session history
+  - `append_to_history()` — appends a single message to session, creates session if new
+- Real Redis equivalent uses `redis_client.get/set` with JSON serialization — identical logic
+
+**context_manager.py**
+- Clean interface that combines Redis (cache.py) and SQL (database.py)
+- Functions:
+  - `get_history()` — loads session from Redis for use in RAG + LLM
+  - `init_conversation_if_new()` — creates SQL conversation record on first message
+  - `record_user_message()` — saves user message to both Redis and SQL
+  - `record_assistant_response()` — saves assistant response to both Redis and SQL
+- This file never needs to change when swapping mocks to real DBs
+
+**main.py — updated**
+- Now loads history from Redis at the start of every request
+- Saves user message + assistant response to both Redis and SQL after processing
+- Two new history endpoints added:
+  - `GET /history/{user_id}` — returns all conversations for a user
+  - `GET /history/{conversation_id}/messages` — returns full ordered message log
+
+#### Key Design Decisions
+
+**Two SQL tables instead of one**
+`conversations` stores metadata once (user_id, started_at). `messages` stays lean with no repeated data. Enables efficient queries — listing conversations doesn't touch the messages table at all.
+
+**Mock-first, real code in comments approach**
+All DB and Redis code is built with in-memory mocks active. Real implementation is written in comments directly above each mock block. When DBs are available — uncomment real block, delete mock block, add connection string to `.env`. No restructuring needed.
+
+**auto-expiry via expires_at column**
+SQL has no built-in row TTL. Each row gets `expires_at = created_at + 30 days`. A scheduled nightly SQL job deletes rows where `expires_at < NOW()`. Cleanup is automatic with no app code involvement.
+
+**context_manager.py as the only interface**
+`main.py` and future modules only import from `context_manager.py`. They never touch `cache.py` or `database.py` directly. This means swapping backends only requires changes in two files, nothing else.
+
+#### RabbitMQ — Clarified Role
+
+The AI Orchestrator does **not** call ServiceNow directly. For `ticket_op` intents, it publishes a message to the RabbitMQ Ticket Queue. A separate Ticket Worker service (built by another team) consumes that message and handles the ServiceNow API call.
+
+- AI Orchestrator responsibility: one `publish()` call with action + details
+- Ticket Worker responsibility: ServiceNow API integration
+- Benefit: chat stays fast, ticket failures don't crash the orchestrator, messages are never lost even if the worker is temporarily down
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Context Management — Redis session store + SQL message log (mock, real code in comments)
+- [ ] Query Contextualizer — rewrite vague queries using history
+- [ ] Decision Engine — route intent to correct handler
+- [ ] RAG Module — embed query, search ChromaDB, retrieve chunks
+- [ ] LLM Response Generation — answer using retrieved chunks + history
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API
+- [ ] RabbitMQ Integration — publish to ticket/notification queues
+
+---
+
 ## Environment Setup
 
 ```bash
