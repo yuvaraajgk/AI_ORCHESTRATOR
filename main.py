@@ -26,15 +26,6 @@ async def receive_message(payload: UserMessage):
 
     print(f"[{payload.conversation_id}] {payload.user_id}: {payload.message} → {intent}")
 
-    # handle multi-intent early — ask user to split
-    if intent["category"] == "multi_intent":
-        return {
-            "status": "clarification_needed",
-            "intent": intent,
-            "session_history": history,
-            "response": "I noticed more than one request in your message. Could you send them one at a time so I can help you better?"
-        }
-
     # save user message to Redis + SQL
     record_user_message(
         payload.conversation_id,
@@ -42,6 +33,17 @@ async def receive_message(payload: UserMessage):
         payload.message,
         intent["category"]
     )
+
+    # handle multi-intent — save then return clarification
+    if intent["category"] == "multi_intent":
+        clarification = "I noticed more than one request in your message. Could you send them one at a time so I can help you better?"
+        record_assistant_response(payload.conversation_id, clarification)
+        return {
+            "status": "clarification_needed",
+            "intent": intent,
+            "session_history": history,
+            "response": clarification
+        }
 
     # placeholder — response will come from decision engine / RAG / LLM
     assistant_response = "processing..."
