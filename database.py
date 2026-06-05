@@ -1,6 +1,3 @@
-from datetime import datetime, timedelta
-from uuid import uuid4
-
 # ─── REAL SQL SETUP (uncomment when DB is available) ───────────────────────────
 #
 # import os
@@ -38,14 +35,6 @@ from uuid import uuid4
 # -- Auto-cleanup job (run as scheduled SQL job nightly):
 # -- DELETE FROM messages      WHERE expires_at < GETDATE();
 # -- DELETE FROM conversations WHERE expires_at < GETDATE();
-#
-# ───────────────────────────────────────────────────────────────────────────────
-
-
-# ─── IN-MEMORY MOCK ────────────────────────────────────────────────────────────
-
-_conversations: dict = {}   # conversation_id → conversation record
-_messages: list     = []    # flat list of all messages
 
 
 def create_conversation(conversation_id: str, user_id: str):
@@ -60,15 +49,6 @@ def create_conversation(conversation_id: str, user_id: str):
     # db.close()
     # ─────────────────────────────────────────────────────────────────────────
 
-    _conversations[conversation_id] = {
-        "id": str(uuid4()),
-        "conversation_id": conversation_id,
-        "user_id": user_id,
-        "started_at": datetime.utcnow(),
-        "last_active_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=30)
-    }
-
 
 def conversation_exists(conversation_id: str) -> bool:
     # ── Real SQL ──────────────────────────────────────────────────────────────
@@ -79,8 +59,6 @@ def conversation_exists(conversation_id: str) -> bool:
     # db.close()
     # return result is not None
     # ─────────────────────────────────────────────────────────────────────────
-
-    return conversation_id in _conversations
 
 
 def save_message(conversation_id: str, role: str, content: str, intent_category: str = None):
@@ -99,18 +77,6 @@ def save_message(conversation_id: str, role: str, content: str, intent_category:
     # db.close()
     # ─────────────────────────────────────────────────────────────────────────
 
-    _messages.append({
-        "id": str(uuid4()),
-        "conversation_id": conversation_id,
-        "role": role,
-        "content": content,
-        "intent_category": intent_category,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=30)
-    })
-    if conversation_id in _conversations:
-        _conversations[conversation_id]["last_active_at"] = datetime.utcnow()
-
 
 def get_conversations_by_user(user_id: str) -> list:
     # ── Real SQL ──────────────────────────────────────────────────────────────
@@ -125,13 +91,6 @@ def get_conversations_by_user(user_id: str) -> list:
     # return [dict(r) for r in rows]
     # ─────────────────────────────────────────────────────────────────────────
 
-    now = datetime.utcnow()
-    return [
-        c for c in _conversations.values()
-        if c["user_id"] == user_id and c["expires_at"] > now
-    ]
-
-
 def get_messages_by_conversation(conversation_id: str) -> list:
     # ── Real SQL ──────────────────────────────────────────────────────────────
     # db = SessionLocal()
@@ -144,9 +103,3 @@ def get_messages_by_conversation(conversation_id: str) -> list:
     # db.close()
     # return [dict(r) for r in rows]
     # ─────────────────────────────────────────────────────────────────────────
-
-    now = datetime.utcnow()
-    return [
-        m for m in _messages
-        if m["conversation_id"] == conversation_id and m["expires_at"] > now
-    ]
