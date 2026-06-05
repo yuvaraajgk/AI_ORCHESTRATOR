@@ -17,6 +17,7 @@ class UserMessage(BaseModel):
 async def receive_message(payload: UserMessage):
     # load session history from Redis
     history = get_history(payload.conversation_id)
+    history_length = len(history)
 
     # classify intent
     intent = classify_intent(payload.message)
@@ -24,6 +25,15 @@ async def receive_message(payload: UserMessage):
     intent["conversation_id"] = payload.conversation_id
 
     print(f"[{payload.conversation_id}] {payload.user_id}: {payload.message} → {intent}")
+
+    # handle multi-intent early — ask user to split
+    if intent["category"] == "multi_intent":
+        return {
+            "status": "clarification_needed",
+            "intent": intent,
+            "session_history": history,
+            "response": "I noticed more than one request in your message. Could you send them one at a time so I can help you better?"
+        }
 
     # save user message to Redis + SQL
     record_user_message(
@@ -42,7 +52,7 @@ async def receive_message(payload: UserMessage):
     return {
         "status": "received",
         "intent": intent,
-        "history_length": len(history),
+        "session_history": history,
         "response": assistant_response
     }
 

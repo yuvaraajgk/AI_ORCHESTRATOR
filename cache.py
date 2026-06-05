@@ -6,7 +6,7 @@ _sessions: dict = {}   # conversation_id → list of messages
 
 
 def load_history(conversation_id: str) -> list:
-    return _sessions.get(conversation_id, [])
+    return list(_sessions.get(conversation_id, []))
 
 
 def save_history(conversation_id: str, history: list):

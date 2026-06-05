@@ -10,7 +10,10 @@ client = Groq(http_client=httpx.Client(verify=False))
 SYSTEM_PROMPT = """
 You are an intent classifier for an enterprise support chatbot.
 
-Classify the user message into exactly one of these categories:
+First, check if the user message contains MORE THAN ONE distinct intent. If it does, respond with:
+{"category": "multi_intent"}
+
+If it contains exactly one intent, classify it into one of these categories:
 
 1. greeting   - casual greetings, small talk (hi, hello, good morning, how are you)
 
@@ -24,6 +27,9 @@ Classify the user message into exactly one of these categories:
                Examples: "create a ticket for my network issue", "show me ticket INC001234", "close ticket INC005678"
 
 Respond with ONLY a JSON object in this exact format:
+
+For multi intent:
+{"category": "multi_intent"}
 
 For greeting:
 {"category": "greeting"}
