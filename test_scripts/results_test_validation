@@ -1,0 +1,44 @@
+
+============================================================
+TEST 1 — ticket create without details (should ask for issue)
+============================================================
+  [PASS] status is incomplete
+  [PASS] asks for issue description
+
+Redis pending set — now send the missing detail:
+  [PASS] status is received after detail
+  [PASS] intent is ticket_op
+  intent details: printer not working on 3rd floor
+
+============================================================
+TEST 2 — ticket view without ID (should ask for ticket ID)
+============================================================
+  [PASS] status is incomplete
+  [PASS] asks for ticket ID
+
+Redis pending set — now send the ticket ID:
+  [PASS] status is received after ID
+
+============================================================
+TEST 3 — ticket update with ID but no changes (should ask what to change)
+============================================================
+  [PASS] status is incomplete
+  [PASS] asks for update description
+
+Redis pending set — now send the changes:
+  [PASS] status is received after detail
+
+============================================================
+TEST 4 — complete request (should go straight through)
+============================================================
+  [PASS] status is received directly
+  [PASS] no incomplete step needed
+
+============================================================
+TEST 5 — Redis memory check (history grows across turns)
+============================================================
+  [PASS] history has 4 messages before 3rd send | got: 4
+
+============================================================
+Total: 13 | Passed: 13 | Failed: 0
+============================================================
