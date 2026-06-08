@@ -45,6 +45,13 @@ async def receive_message(payload: UserMessage):
             "response": clarification
         }
 
+    # handle greeting + another intent — greet and process the other intent
+    if intent["category"] == "greeting_with_intent":
+        intent = intent["other"]
+        intent["user_id"] = payload.user_id
+        intent["conversation_id"] = payload.conversation_id
+        intent["greeted"] = True
+
     # placeholder — response will come from decision engine / RAG / LLM
     assistant_response = "processing..."
 

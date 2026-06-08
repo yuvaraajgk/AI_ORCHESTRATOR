@@ -1,0 +1,46 @@
+Query                                              Expected                  Got                       Result
+-------------------------------------------------------------------------------------------------------------------
+Prompt Tokens: 386
+hey                                                greeting                  greeting                  PASS
+Prompt Tokens: 387
+good morning                                       greeting                  greeting                  PASS
+Prompt Tokens: 387
+helo                                               greeting                  greeting                  PASS
+Prompt Tokens: 389
+how are you?                                       greeting                  greeting                  PASS
+Prompt Tokens: 391
+my laptop won't turn on                            technical                 technical                 PASS
+Prompt Tokens: 392
+how do I reset my password?                        technical                 technical                 PASS
+Prompt Tokens: 392
+how do I raise a ticket?                           technical                 technical                 PASS
+Prompt Tokens: 389
+VPN is not connecting                              technical                 technical                 PASS
+Prompt Tokens: 389
+it's not working                                   technical                 technical                 PASS
+Prompt Tokens: 391
+URGENT my system crashed                           technical                 technical                 PASS
+Prompt Tokens: 387
+not working                                        technical                 technical                 PASS
+Prompt Tokens: 391
+create a ticket for network issue                  ticket_op/create          ticket_op/create          PASS
+Prompt Tokens: 391
+show me ticket INC001234                           ticket_op/view            ticket_op/view            PASS
+Prompt Tokens: 390
+close ticket INC005678                             ticket_op/close           ticket_op/close           PASS
+Prompt Tokens: 392
+update ticket INC009 with new info                 ticket_op/update          ticket_op/update          PASS
+Prompt Tokens: 391
+hi, my VPN is down                                 greeting_with_intent      greeting_with_intent      PASS
+Prompt Tokens: 393
+hello, create a ticket for printer issue           greeting_with_intent      greeting_with_intent      PASS
+Prompt Tokens: 396
+hey how's it going, how do I reset password        greeting_with_intent      greeting_with_intent      PASS
+Prompt Tokens: 392
+create a ticket and reset my password              multi_intent              multi_intent              PASS
+Prompt Tokens: 395
+fix my VPN and also show me ticket INC001          multi_intent              multi_intent              PASS
+-------------------------------------------------------------------------------------------------------------------
+
+Total: 20 | Passed: 20 | Failed: 0 | Errors: 0
+Accuracy: 100.0%

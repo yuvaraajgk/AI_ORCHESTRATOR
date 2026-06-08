@@ -10,7 +10,16 @@ client = Groq(http_client=httpx.Client(verify=False))
 SYSTEM_PROMPT = """
 You are an intent classifier for an enterprise support chatbot.
 
-First, check if the user message contains MORE THAN ONE distinct intent. If it does, respond with:
+First, check if the user message contains MORE THAN ONE distinct intent.
+
+If it contains multiple intents AND one of them is a greeting, respond with:
+{"category": "greeting_with_intent", "other": <classify the non-greeting intent normally>}
+
+Examples:
+- "hey, how do I create a ticket?" → {"category": "greeting_with_intent", "other": {"category": "technical"}}
+- "hi, create a ticket for my VPN issue" → {"category": "greeting_with_intent", "other": {"category": "ticket_op", "action": "create", "details": "VPN issue"}}
+
+If it contains multiple non-greeting intents, respond with:
 {"category": "multi_intent"}
 
 If it contains exactly one intent, classify it into one of these categories:
@@ -26,21 +35,7 @@ If it contains exactly one intent, classify it into one of these categories:
                create a new ticket, view a specific ticket, update a ticket, or close a ticket.
                Examples: "create a ticket for my network issue", "show me ticket INC001234", "close ticket INC005678"
 
-Respond with ONLY a JSON object in this exact format:
-
-For multi intent:
-{"category": "multi_intent"}
-
-For greeting:
-{"category": "greeting"}
-
-For technical:
-{"category": "technical"}
-
-For ticket_op:
-{"category": "ticket_op", "action": "create|view|update|close", "details": "<what the user described>"}
-
-No explanation. No extra text. Only the JSON.
+Respond with ONLY a JSON object. No explanation. No extra text. Only the JSON.
 """
 
 
