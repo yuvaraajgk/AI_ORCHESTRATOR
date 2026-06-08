@@ -254,6 +254,110 @@ The AI Orchestrator does **not** call ServiceNow directly. For `ticket_op` inten
 
 ---
 
+### Day 4 — 2026-06-05
+
+#### What was built
+
+**cache.py — updated**
+- Added `_pending` dict — second Redis key per conversation, stores incomplete intents waiting for follow-up
+- Three new pending state functions:
+  - `get_pending()` — checks if conversation has an unanswered clarification request
+  - `set_pending()` — stores incomplete intent when validation fails
+  - `clear_pending()` — deletes pending state once user fills in the missing info
+- Real Redis equivalents use `pending:{conversation_id}` key — written in comments
+
+**query_validator.py — new**
+- Validates whether a classified intent has all required fields to be processed
+- Rules per `ticket_op` action:
+  - `create` → needs non-empty issue description
+  - `view` / `close` → needs ticket ID matching `INC\d+` pattern
+  - `update` → needs ticket ID + additional description beyond just the ID
+- Returns `{"complete": True}` or `{"complete": False, "missing": "...", "ask": "..."}`
+- `greeting`, `technical`, `multi_intent`, `greeting_with_intent` always pass validation
+
+**main.py — updated with 6-step flow**
+
+| Step | What happens |
+|---|---|
+| 1 | Check Redis for pending state — if found, skip classification, merge reply as missing detail |
+| 2 | Classify intent normally |
+| 3 | Handle multi_intent — save + return clarification |
+| 4 | Handle greeting_with_intent — extract real intent, set greeted flag |
+| 5 | Validate intent — if incomplete, save to pending, return clarification question |
+| 6 | Save + process normally |
+
+**intent testing — completed**
+- Built `test_scripts/test_intent.py` — systematic test runner
+- 20 test cases covering all 5 categories and edge cases
+- Result: 100% accuracy — all cases passed
+- Results saved in `test_scripts/results_test_intent.txt`
+
+#### Key Design Decisions
+
+**Pending state approach over simpler flag approach**
+Chose Redis pending state (storing incomplete intent between turns) over a simpler `complete` flag approach. Reasons: more robust for multi-turn clarification, doesn't rely on query contextualizer being built first, works independently as a complete feature.
+
+**Pending state cleared immediately on follow-up**
+Once the user fills in the missing detail, `clear_pending()` is called before processing. If the user sends a new unrelated request while a pending state exists, their reply is used as the missing detail — intentional for now, can be refined later.
+
+**Ticket ID format: INC\d+**
+Used regex `INC\d+` to detect ticket IDs in details. This matches ServiceNow's standard INC number format. Can be extended to support other prefixes (CHG, PRB) when needed.
+
+**multi_intent saves before returning**
+Unlike the early return pattern, multi_intent now saves both user message and clarification response to Redis + SQL before returning. Full audit trail preserved.
+
+#### greeting_with_intent — refined
+Updated intent classifier to distinguish:
+- `greeting + another intent` → `greeting_with_intent` — greet and process the real intent
+- `two non-greeting intents` → `multi_intent` — ask user to split
+
+`greeted: true` flag set on intent so response generator (future) can prepend a greeting to the answer.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store + SQL message log (mock, real code in comments)
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [ ] Query Contextualizer — rewrite vague queries using conversation history
+- [ ] Decision Engine — route intent to correct handler
+- [ ] RAG Module — embed query, search ChromaDB, retrieve chunks
+- [ ] LLM Response Generation — answer using retrieved chunks + history
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API
+- [ ] RabbitMQ Integration — publish to ticket/notification queues
+
+---
+
+### Day 5 — 2026-06-08
+
+#### Progress review against task table
+
+**Intent Classification & Entity Extraction** — fully complete
+- Define intents, entities, flows ✓
+- Model implementation ✓
+- Multi-intent & entity mapping handling ✓
+- Testing & tuning ✓ — 100% on 20 test cases
+
+**Context Management** — built, needs systematic testing
+- Design conversation memory schema ✓
+- Context persistence (session + DB integration) ✓
+- Testing & tuning ⚠️ — manual testing only
+
+**Query Validations** — complete
+- Query and corresponding answer insertion for that session ✓
+- Demand additional details in case of incomplete data ✓
+
+**Decision Engine** — not started
+**Prompt Builder** — not started
+
+**Request and Response Structure** — complete
+- Define input schema ✓
+- Input validation & preprocessing ✓
+
+---
+
 ## Environment Setup
 
 ```bash
