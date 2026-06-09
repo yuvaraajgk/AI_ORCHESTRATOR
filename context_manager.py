@@ -3,7 +3,7 @@ from database import conversation_exists, create_conversation, save_message
 
 
 def get_history(conversation_id: str) -> list:
-    return load_history(conversation_id)
+    return load_history(conversation_id, limit=10)
 
 
 def init_conversation_if_new(conversation_id: str, user_id: str):

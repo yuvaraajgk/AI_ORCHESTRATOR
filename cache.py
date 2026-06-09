@@ -11,9 +11,10 @@ redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 # ── History functions ──────────────────────────────────────────────────────────
 
-def load_history(conversation_id: str) -> list:
+def load_history(conversation_id: str, limit: int = None) -> list:
     raw = redis_client.get(f"session:{conversation_id}")
-    return json.loads(raw) if raw else []
+    history = json.loads(raw) if raw else []
+    return history[-limit:] if limit else history
 
 
 def save_history(conversation_id: str, history: list):
