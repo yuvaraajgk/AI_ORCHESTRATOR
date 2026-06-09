@@ -358,6 +358,80 @@ Updated intent classifier to distinguish:
 
 ---
 
+### Day 6 — 2026-06-09
+
+#### What was built
+
+**cache.py — switched from mock to real Redis**
+- Uncommented real Redis implementation, removed in-memory mock
+- `redis.Redis.from_url()` now active — reads `REDIS_URL` from `.env`
+- All three key functions live: `load_history()`, `save_history()`, `append_to_history()`
+- All three pending functions live: `get_pending()`, `set_pending()`, `clear_pending()`
+- Redis key structure in use:
+  - `session:{conversation_id}` → JSON array of `{ role, content }` objects
+  - `pending:{conversation_id}` → JSON object of incomplete intent, only exists mid-clarification
+
+**test_scripts/test_redis.py — new**
+- Systematic integration test for Redis — tests the server directly alongside the API
+- 5 tests covering the full Redis lifecycle:
+
+| Test | What it verifies |
+|---|---|
+| 1 | Redis server is reachable (`ping`) |
+| 2 | Session key created and correctly structured after first message |
+| 3 | History grows (appends, not overwrites) across turns |
+| 4 | Pending key created on incomplete intent, cleared on follow-up |
+| 5 | History loaded from Redis at start of each request (data survives between calls) |
+
+- Reads Redis directly (`redis_client.get()`) — confirms data is actually persisted, not just returned by the API
+
+#### Token Analysis
+
+Observed the intent classifier consuming **386 prompt tokens** for a simple `"hey"` message.
+Breakdown: ~384 tokens is the system prompt, ~2 tokens is the message itself.
+
+Estimated full pipeline cost per turn once all components are built:
+
+| Call | Input tokens | Output tokens |
+|---|---|---|
+| Intent classifier | ~386 | ~30 |
+| Query contextualizer | ~620 | ~40 |
+| Response generator | ~1740 | ~200 |
+| **Total** | **~2750** | **~270** |
+
+Cost comparison across model options:
+
+| Model | Per turn | Per 1K turns |
+|---|---|---|
+| Groq / LLaMA (dev) | ~free | ~free |
+| Gemini 2.5 Flash | ~$0.0003 | ~$0.29 |
+| Claude Sonnet 4.6 (prod target) | ~$0.012 | ~$12.00 |
+
+#### Key Finding — Classifier Prompt Optimisation Opportunity
+
+The classifier system prompt is ~370 tokens — large for a routing task that already achieves 100% accuracy on the test suite. Trimming it to ~150 tokens (removing redundant examples, tightening descriptions) would save ~220 tokens on every single message across all three pipeline calls. This is the highest-leverage prompt optimisation available before the full pipeline is built.
+
+**Not done yet** — optimisation and retest pending.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + SQL message log (mock, real code in comments)
+- [x] Redis integration testing — test_redis.py, all 5 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [ ] Classifier prompt optimisation — trim ~370 token prompt, retest accuracy
+- [ ] Query Contextualizer — rewrite vague queries using conversation history
+- [ ] Decision Engine — route intent to correct handler
+- [ ] RAG Module — embed query, search ChromaDB, retrieve chunks
+- [ ] LLM Response Generation — answer using retrieved chunks + history
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API
+- [ ] RabbitMQ Integration — publish to ticket/notification queues
+
+---
+
 ## Environment Setup
 
 ```bash
