@@ -3,7 +3,7 @@ import httpx
 from groq import Groq
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 client = Groq(http_client=httpx.Client(verify=False))
 

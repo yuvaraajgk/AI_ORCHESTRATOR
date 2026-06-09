@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 groq
+redis==3.5.3
 python-dotenv
 chromadb
 pika
