@@ -5,6 +5,7 @@ from context_manager import get_history, record_user_message, record_assistant_r
 from database import get_conversations_by_user, get_messages_by_conversation
 from cache import get_pending, set_pending, clear_pending
 from query_validator import validate_intent
+from query_contextualizer import contextualize
 
 app = FastAPI()
 
@@ -76,7 +77,13 @@ async def receive_message(payload: UserMessage):
                 "response": validation["ask"]
             }
 
-    # ── Step 6: save user message + process ───────────────────────────────────
+    # ── Step 6: contextualize query for technical intents ─────────────────────
+    if intent["category"] == "technical":
+        query = contextualize(payload.message, history)
+    else:
+        query = payload.message
+
+    # ── Step 7: save user message + process ───────────────────────────────────
     record_user_message(
         payload.conversation_id,
         payload.user_id,
@@ -91,6 +98,7 @@ async def receive_message(payload: UserMessage):
     return {
         "status": "received",
         "intent": intent,
+        "query": query,
         "session_history": history,
         "response": assistant_response
     }
