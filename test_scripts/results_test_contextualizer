@@ -1,0 +1,54 @@
+
+============================================================
+TEST 1 — first message, no history
+Expected: query returned unchanged (no LLM rewrite, nothing to use)
+============================================================
+  [PASS] query field present in response
+  [PASS] query matches original message (no history to rewrite from)
+         original: 'my printer is not working' | got: 'my printer is not working'
+
+============================================================
+TEST 2 — vague follow-up, history exists
+Expected: query rewritten to something specific
+============================================================
+  [PASS] query field present in response
+  [PASS] query was rewritten (different from vague original)
+         original: 'it still doesn't work' | rewritten to: 'my printer still doesn't work'
+         rewritten query: 'my printer still doesn't work'
+
+============================================================
+TEST 3 — specific follow-up, history exists
+Expected: query enriched with context or returned as-is — either is valid
+============================================================
+  [PASS] query field present in response
+  [PASS] query is non-empty and meaningful
+         original: 'how do I restart the print spooler service?' | got: 'how do I restart the print spooler service to fix my printer issue'
+         query returned: 'how do I restart the print spooler service to fix my printer issue'
+
+============================================================
+TEST 4 — ticket_op skips contextualizer
+Expected: query equals original message exactly
+============================================================
+  [PASS] query field present in response
+  [PASS] query unchanged for ticket_op (contextualizer not called)
+         original: 'create a ticket for VPN not connecting' | got: 'create a ticket for VPN not connecting'
+
+============================================================
+TEST 5 — greeting skips contextualizer
+Expected: query equals original message exactly
+============================================================
+  [PASS] query field present in response
+  [PASS] query unchanged for greeting (contextualizer not called)
+         original: 'hey' | got: 'hey'
+
+============================================================
+TEST 6 — pronoun chain across multiple turns
+Expected: each vague message rewritten using accumulated history
+============================================================
+  [PASS] query was rewritten
+         original: 'still the same issue' | rewritten to: 'VPN connection still not working after restarting'
+         rewritten query: 'VPN connection still not working after restarting'
+
+============================================================
+Total: 11 | Passed: 11 | Failed: 0
+============================================================

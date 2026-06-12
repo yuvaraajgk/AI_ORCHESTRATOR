@@ -1,0 +1,34 @@
+
+============================================================
+TEST 1 — Redis connection
+============================================================
+  [PASS] Redis is reachable
+
+============================================================
+TEST 2 — session history persists in Redis
+============================================================
+  [PASS] session key created in Redis after first message
+  [PASS] history has 2 entries (user + assistant)
+  [PASS] first entry is user message
+  [PASS] second entry is assistant reply
+
+============================================================
+TEST 3 — history grows across turns
+============================================================
+  [PASS] history has 4 entries after second message
+
+============================================================
+TEST 4 — pending state saved and cleared
+============================================================
+  [PASS] pending key created after incomplete request
+  [PASS] pending intent is ticket_op
+  [PASS] pending key cleared after follow-up
+
+============================================================
+TEST 5 — data survives between requests
+============================================================
+  [PASS] session_history returned has 4 entries from Redis
+
+============================================================
+Total: 10 | Passed: 10 | Failed: 0
+============================================================
