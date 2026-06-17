@@ -88,3 +88,16 @@ Two things done today.
 **Second — Redis tested properly.** We wrote a dedicated test script that connects to Redis directly (not just through the API) to confirm data is actually being stored and not just returned by the app. Five tests covering: server connection, session history creation, history growing across turns, pending state being saved and cleared, and data surviving between separate requests. All passed.
 
 **Also noted:** the intent classifier is using ~386 tokens per message — almost all of it is the system prompt, not the user's message. Once the full pipeline is built (classifier + query rewriter + response generator), each conversation turn will cost roughly 3,000 tokens total. At current model pricing that's under a cent per message with Gemini Flash, around 1.2 cents with Claude Sonnet. The classifier prompt has room to be cut roughly in half without affecting accuracy — flagged as an optimisation to do before the next module is built.
+
+---
+
+### Day 7 — 2026-06-10 to 2026-06-12
+**Optimising the classifier, capping history, and building the query rewriter**
+
+Three things done across these days.
+
+**First — classifier prompt trimmed.** The system prompt that tells the LLM how to classify messages was 370 tokens long — far more than needed. We rewrote it to be concise while keeping every important rule. Token count dropped from 386 to around 205 per call — a 45% saving on every single message the system ever receives. Re-ran the full 20-case test suite after trimming: still 100% accuracy. No quality lost.
+
+**Second — conversation history capped at 5 turns.** The LLM reading the full conversation history would get increasingly expensive as conversations grew. We added a limit so only the last 5 turns (10 messages) are passed to the LLM. The full history is still saved in Redis and the database — the cap only applies to what the LLM sees. First-time users and short conversations are handled automatically — if there are fewer than 10 messages, all of them are returned.
+
+**Third — query contextualizer built and tested.** This is the module that solves vague follow-up messages. When a user says *"it still doesn't work"* after a previous message about their printer, the system now rewrites that into *"printer still not working after troubleshooting"* before searching the knowledge base. Without this, RAG would have nothing useful to search on. The rewriter only runs for technical questions — ticket actions and greetings bypass it entirely. Six tests written and passing, including a three-turn pronoun chain test where the system correctly tracked what *"it"* referred to across multiple messages.

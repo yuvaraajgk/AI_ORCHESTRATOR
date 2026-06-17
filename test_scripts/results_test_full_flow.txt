@@ -1,0 +1,128 @@
+Full Flow Test
+============================================================
+
+SCENARIO 1 — Greeting
+------------------------------------------------------------
+  Message : hey
+  Status  : received
+  Intent  : greeting / -
+  Query   : hey
+  Response: processing...
+  History : 0 entries
+  [PASS] status is received
+  [PASS] category is greeting
+
+SCENARIO 2 — Technical + query contextualizer across 3 turns
+------------------------------------------------------------
+  Message : my VPN is not connecting
+  Status  : received
+  Intent  : technical / -
+  Query   : my VPN is not connecting
+  Response: processing...
+  History : 0 entries
+  [PASS] query unchanged on first message
+
+  Message : I tried restarting it
+  Status  : received
+  Intent  : technical / -
+  Query   : VPN connection issues after restarting
+  Response: processing...
+  History : 2 entries
+  [PASS] query was rewritten
+
+  Message : still the same issue
+  Status  : received
+  Intent  : technical / -
+  Query   : VPN connection still not working after restarting
+  Response: processing...
+  History : 4 entries
+  [PASS] query was rewritten
+  [PASS] history has 4 entries
+
+SCENARIO 3 — ticket_op complete, straight through
+------------------------------------------------------------
+  Message : create a ticket for network issue
+  Status  : received
+  Intent  : ticket_op / create
+  Query   : create a ticket for network issue
+  Response: processing...
+  History : 0 entries
+  [PASS] status is received
+  [PASS] category is ticket_op
+  [PASS] action is create
+
+SCENARIO 4 — ticket_op incomplete, pending state, resume
+------------------------------------------------------------
+  Message : create a ticket
+  Status  : incomplete
+  Intent  : None / -
+  Response: What issue would you like to raise a ticket for?
+  Missing : issue description
+  History : 0 entries
+  [PASS] status is incomplete
+  [PASS] missing is issue description
+
+  Message : printer not working on 3rd floor
+  Status  : received
+  Intent  : ticket_op / create
+  Query   : printer not working on 3rd floor
+  Response: processing...
+  History : 2 entries
+  [PASS] status is received after detail
+  [PASS] pending was cleared
+
+SCENARIO 5 — ticket view without ID
+------------------------------------------------------------
+  Message : show me the ticket
+  Status  : incomplete
+  Intent  : None / -
+  Response: Please provide the ticket ID you'd like to view (e.g. INC001234).
+  Missing : ticket ID
+  History : 0 entries
+  [PASS] status is incomplete
+  [PASS] missing is ticket ID
+
+  Message : INC001234
+  Status  : received
+  Intent  : ticket_op / view
+  Query   : INC001234
+  Response: processing...
+  History : 2 entries
+  [PASS] status is received after ID
+  [PASS] pending was cleared
+
+SCENARIO 6 — greeting_with_intent
+------------------------------------------------------------
+  Message : hi, my laptop won't turn on
+  Status  : received
+  Intent  : technical / -
+  Query   : hi, my laptop won't turn on
+  Response: processing...
+  History : 0 entries
+  [PASS] status is received
+  [PASS] category is greeting_with_intent
+
+SCENARIO 7 — multi_intent
+------------------------------------------------------------
+  Message : create a ticket and reset my password
+  Status  : clarification_needed
+  Intent  : multi_intent / -
+  Response: I noticed more than one request in your message. Could you send them one at a time so I can help you better?
+  History : 0 entries
+  [PASS] status is clarification_needed
+  [PASS] category is multi_intent
+
+SCENARIO 8 — history limit (10 entries max returned)
+------------------------------------------------------------
+  Turn 1: 'my printer is broken' — history: 0 entries
+  Turn 2: 'it won't print anything' — history: 2 entries
+  Turn 3: 'I checked the cables' — history: 4 entries
+  Turn 4: 'still not working' — history: 6 entries
+  Turn 5: 'tried reinstalling the driver' — history: 8 entries
+  Turn 6: 'what else can I try?' — history: 10 entries
+
+  [PASS] history capped at 10 entries on turn 6 | got: 10
+
+============================================================
+Full flow test complete.
+============================================================

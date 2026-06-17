@@ -6,3 +6,4 @@ python-dotenv
 chromadb
 pika
 pydantic
+psycopg2-binary

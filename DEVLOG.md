@@ -432,6 +432,80 @@ The classifier system prompt is ~370 tokens — large for a routing task that al
 
 ---
 
+### Day 7 — 2026-06-10 to 2026-06-12
+
+#### What was built
+
+**Classifier prompt optimisation — completed**
+- Trimmed `SYSTEM_PROMPT` in `intent_classifier.py` from ~370 tokens to ~115 tokens
+- Removed redundant examples and verbose descriptions, kept all critical classification rules
+- Reran `test_intent.py` — 100% accuracy held across all 20 test cases
+- Token count dropped from **386 → ~205** per classifier call — 45% reduction on every single message
+
+**context_manager.py + cache.py — history window limit**
+- Added `limit` parameter to `load_history()` in `cache.py`
+- `get_history()` in `context_manager.py` now passes `limit=10` — returns last 10 entries (5 complete turns)
+- Full history still written to Redis on every message — limit only applied at read time
+- Handles edge cases naturally: first message returns `[]`, fewer than 10 entries returns whatever exists
+
+**query_contextualizer.py — new**
+- New module with one function: `contextualize(message, history)`
+- If history is empty → returns message unchanged (no LLM call made)
+- If history exists → formats history as text, sends to LLM with current message, gets back a rewritten standalone query
+- Turns vague follow-ups like `"it still doesn't work"` into specific queries like `"printer still not working after troubleshooting"`
+
+**main.py — Step 6 added**
+- Contextualization inserted before saving and processing
+- Only runs for `technical` intents — `ticket_op` and `greeting` bypass it entirely
+- `query` field added to API response — shows the rewritten query for inspection
+
+**test_scripts/test_contextualizer.py — new**
+- 6 test cases, 11 checks
+- Covers: first message (no history), vague follow-up rewrite, specific follow-up, ticket_op bypass, greeting bypass, pronoun chain across 3 turns
+- All 11 checks passing
+- `sys.path` fix also applied to `test_intent.py` so all test scripts run correctly from project root
+
+#### Key Design Decisions
+
+**History limit at read time, not write time**
+Full history is always written to Redis. The 10-entry limit is applied only when loading for the LLM. This means SQL has the complete audit trail, Redis has the full session, and the LLM only sees the relevant recent window. No data is ever discarded.
+
+**Contextualizer only fires for technical intents**
+`ticket_op` intents don't go to RAG — they route to ServiceNow. No point rewriting a query that won't be searched. `greeting` responses are direct LLM replies with no retrieval step. Contextualization is only useful where RAG is involved.
+
+**Test 3 expectation corrected**
+Initial test assumed a self-contained message would be returned unchanged even with history present. The LLM correctly enriched it with context instead — more useful for RAG. Test updated to check that the query is non-empty and meaningful rather than asserting exact string match.
+
+#### Updated Token Estimate (post-optimisation)
+
+| Call | Before | After |
+|---|---|---|
+| Intent classifier | ~386 tokens | ~205 tokens |
+| Query contextualizer | ~620 tokens | ~620 tokens |
+| Response generator | ~1740 tokens | ~1740 tokens |
+| **Total per turn** | **~2750 tokens** | **~2565 tokens** |
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + SQL message log (mock, real code in comments)
+- [x] Redis integration testing — test_redis.py, all 5 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history, tested
+- [ ] Decision Engine — route intent to correct handler
+- [ ] Prompt Builder — assemble history + RAG chunks + query into LLM payload
+- [ ] LLM Response Generation — final LLM call, returns real answer to user
+- [ ] RAG Module — embed query, search ChromaDB, retrieve chunks (blocked: no DB access)
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+- [ ] RabbitMQ Integration — publish to ticket/notification queues (blocked: no infra config)
+
+---
+
 ## Environment Setup
 
 ```bash

@@ -11,7 +11,6 @@ redis_client = redis.Redis.from_url("redis://localhost:6379", decode_responses=T
 passed = 0
 failed = 0
 
-
 def chat(user_id, conversation_id, message):
     return requests.post(f"{BASE}/chat", json={
         "user_id": user_id,

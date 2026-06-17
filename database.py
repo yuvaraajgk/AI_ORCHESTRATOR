@@ -1,53 +1,109 @@
-from datetime import datetime, timedelta
+import os
+import psycopg2
+import psycopg2.extras
+from psycopg2.pool import SimpleConnectionPool
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-# ─── IN-MEMORY MOCK ────────────────────────────────────────────────────────────
+from dotenv import load_dotenv
 
-_conversations: dict = {}   # conversation_id → conversation record
-_messages: list     = []    # flat list of all messages
+load_dotenv()
+
+_pool = SimpleConnectionPool(1, 10, os.getenv("DATABASE_URL"))
+
+
+def _get_conn():
+    return _pool.getconn()
+
+
+def _put_conn(conn):
+    _pool.putconn(conn)
 
 
 def create_conversation(conversation_id: str, user_id: str):
-    _conversations[conversation_id] = {
-        "id": str(uuid4()),
-        "conversation_id": conversation_id,
-        "user_id": user_id,
-        "started_at": datetime.utcnow(),
-        "last_active_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=30)
-    }
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO conversations (id, conversation_id, user_id, started_at, last_active_at, expires_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (conversation_id) DO NOTHING
+        """, (
+            str(uuid4()),
+            conversation_id,
+            user_id,
+            datetime.now(timezone.utc),
+            datetime.now(timezone.utc),
+            datetime.now(timezone.utc) + timedelta(days=30)
+        ))
+        conn.commit()
+        cur.close()
+    finally:
+        _put_conn(conn)
 
 
 def conversation_exists(conversation_id: str) -> bool:
-    return conversation_id in _conversations
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM conversations WHERE conversation_id = %s", (conversation_id,))
+        exists = cur.fetchone() is not None
+        cur.close()
+        return exists
+    finally:
+        _put_conn(conn)
 
 
 def save_message(conversation_id: str, role: str, content: str, intent_category: str = None):
-
-    _messages.append({
-        "id": str(uuid4()),
-        "conversation_id": conversation_id,
-        "role": role,
-        "content": content,
-        "intent_category": intent_category,
-        "created_at": datetime.utcnow(),
-        "expires_at": datetime.utcnow() + timedelta(days=30)
-    })
-    if conversation_id in _conversations:
-        _conversations[conversation_id]["last_active_at"] = datetime.utcnow()
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO messages (id, conversation_id, role, content, intent_category, created_at, expires_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (
+            str(uuid4()),
+            conversation_id,
+            role,
+            content,
+            intent_category,
+            datetime.now(timezone.utc),
+            datetime.now(timezone.utc) + timedelta(days=30)
+        ))
+        cur.execute("""
+            UPDATE conversations SET last_active_at = %s WHERE conversation_id = %s
+        """, (datetime.now(timezone.utc), conversation_id))
+        conn.commit()
+        cur.close()
+    finally:
+        _put_conn(conn)
 
 
 def get_conversations_by_user(user_id: str) -> list:
-
-    now = datetime.utcnow()
-    return [
-        c for c in _conversations.values()
-        if c["user_id"] == user_id and c["expires_at"] > now
-    ]
+    conn = _get_conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT * FROM conversations
+            WHERE user_id = %s AND expires_at > %s
+        """, (user_id, datetime.now(timezone.utc)))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        _put_conn(conn)
 
 
 def get_messages_by_conversation(conversation_id: str) -> list:
-    now = datetime.utcnow()
-    return [
-        m for m in _messages
-        if m["conversation_id"] == conversation_id and m["expires_at"] > now
-    ]
+    conn = _get_conn()
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT * FROM messages
+            WHERE conversation_id = %s AND expires_at > %s
+            ORDER BY created_at ASC
+        """, (conversation_id, datetime.now(timezone.utc)))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        _put_conn(conn)
