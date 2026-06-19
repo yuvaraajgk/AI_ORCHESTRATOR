@@ -101,3 +101,27 @@ Three things done across these days.
 **Second — conversation history capped at 5 turns.** The LLM reading the full conversation history would get increasingly expensive as conversations grew. We added a limit so only the last 5 turns (10 messages) are passed to the LLM. The full history is still saved in Redis and the database — the cap only applies to what the LLM sees. First-time users and short conversations are handled automatically — if there are fewer than 10 messages, all of them are returned.
 
 **Third — query contextualizer built and tested.** This is the module that solves vague follow-up messages. When a user says *"it still doesn't work"* after a previous message about their printer, the system now rewrites that into *"printer still not working after troubleshooting"* before searching the knowledge base. Without this, RAG would have nothing useful to search on. The rewriter only runs for technical questions — ticket actions and greetings bypass it entirely. Six tests written and passing, including a three-turn pronoun chain test where the system correctly tracked what *"it"* referred to across multiple messages.
+
+---
+
+### Day 8 — 2026-06-17
+**Switching the database from mock to real PostgreSQL and completing end-to-end testing**
+
+Two things done today.
+
+**First — PostgreSQL is now live.** Until today, the database layer was a mock (a Python dictionary pretending to be a database). We switched it on for real — the app now connects to an actual PostgreSQL instance and persists every message to disk. Connection pooling is in place so multiple simultaneous requests don't conflict. The schema was also formalised into a one-time setup script (`setup_db.py`) that creates both tables and can be re-run safely without wiping data.
+
+**Second — full integration and end-to-end tests written and passing.** We added two test scripts. The first (`test_database.py`) sends messages through the API and then connects directly to PostgreSQL to confirm the rows were actually written — not just returned by the app. Eight checks cover conversation creation, message storage, timestamp updates, expiry dates, and the history retrieval endpoints. The second (`test_full_flow.py`) runs eight real conversation scenarios end-to-end: greetings, multi-turn technical questions with query rewriting, complete and incomplete ticket operations, greeting-with-intent combinations, multi-intent detection, and the history cap. All scenarios pass.
+
+At this point the core pipeline — intent classification, context management (Redis + PostgreSQL), query validation, and query contextualisation — is fully built, tested, and running against real infrastructure.
+
+---
+
+### Day 9 — 2026-06-19
+**New device setup and fixing a Python 3.14 compatibility issue**
+
+Project moved to a new Windows device via OneDrive sync. The virtual environment (`wenv`) came along in the sync but couldn't be reused — venvs embed the Python interpreter's absolute path and compile extensions tied to the original machine. A fresh environment was created instead.
+
+Redis and PostgreSQL are now both running in Docker containers rather than native Windows installs. This makes the setup reproducible — spinning up both services is two `docker run` commands and they persist across reboots with `docker start`.
+
+One dependency issue discovered: the pinned `redis==3.5.3` package uses a Python module (`distutils`) that was removed in Python 3.12. Since the project runs on Python 3.14, it crashed on startup with an import error. The fix was to unpin the redis version so pip installs the latest release (5.x), which dropped that dependency years ago.

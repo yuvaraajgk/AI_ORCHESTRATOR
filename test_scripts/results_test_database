@@ -1,0 +1,63 @@
+
+============================================================
+TEST 1 — conversation row created on first message
+============================================================
+  [PASS] conversation row created in DB
+  [PASS] user_id stored correctly
+         got: u1
+  [PASS] expires_at is 30 days ahead
+         expires_at: 2026-07-19 11:53:26.362930
+
+============================================================
+TEST 2 — messages saved correctly after one turn
+============================================================
+  [PASS] 2 message rows created (user + assistant)
+  [PASS] first row is user message
+  [PASS] user content stored correctly
+         got: my VPN is not connecting
+  [PASS] intent_category stored on user message
+         got: technical
+  [PASS] second row is assistant reply
+  [PASS] intent_category is null on assistant row
+
+============================================================
+TEST 3 — message count grows across turns
+============================================================
+  [PASS] 4 message rows after second turn
+         got: 4
+
+============================================================
+TEST 4 — conversation not duplicated on follow-up message
+============================================================
+  [PASS] still only 1 conversation row after 2 turns
+         got: 1
+
+============================================================
+TEST 5 — last_active_at updated on each message
+============================================================
+  [PASS] last_active_at updated after new message
+         before: 2026-06-19 11:53:28.001188 | after: 2026-06-19 11:53:29.058550
+
+============================================================
+TEST 6 — GET /history/{user_id} returns conversations from DB
+============================================================
+  [PASS] API returns conversations for user
+  [PASS] db_conv_1 present in results
+  [PASS] db_conv_2 present in results
+
+============================================================
+TEST 7 — GET /history/{conversation_id}/messages returns messages from DB
+============================================================
+  [PASS] messages returned for conversation
+  [PASS] messages in chronological order
+         message count: 6
+
+============================================================
+TEST 8 — ticket_op intent_category stored correctly
+============================================================
+  [PASS] intent_category is ticket_op for ticket request
+         got: ticket_op
+
+============================================================
+Total: 18 | Passed: 18 | Failed: 0
+============================================================

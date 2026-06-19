@@ -6,6 +6,7 @@ from database import get_conversations_by_user, get_messages_by_conversation
 from cache import get_pending, set_pending, clear_pending
 from query_validator import validate_intent
 from query_contextualizer import contextualize
+from greeting_handler import generate_greeting_response
 
 app = FastAPI()
 
@@ -91,8 +92,11 @@ async def receive_message(payload: UserMessage):
         intent["category"]
     )
 
-    # placeholder — will be replaced by decision engine → RAG → LLM
-    assistant_response = "processing..."
+    if intent["category"] == "greeting":
+        assistant_response = generate_greeting_response(payload.message, history)
+    else:
+        # placeholder — will be replaced by decision engine → RAG → LLM
+        assistant_response = "processing..."
     record_assistant_response(payload.conversation_id, assistant_response)
 
     return {

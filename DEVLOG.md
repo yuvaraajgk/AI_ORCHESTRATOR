@@ -506,19 +506,147 @@ Initial test assumed a self-contained message would be returned unchanged even w
 
 ---
 
+### Day 8 — 2026-06-17
+
+#### What was built
+
+**database.py — switched from mock to real PostgreSQL**
+- Replaced in-memory mock with live psycopg2 implementation
+- Connection pooling via `SimpleConnectionPool(1, 10)` — borrows and returns connections per function call via `_get_conn()` / `_put_conn()`
+- Real SQL queries active across all four functions:
+  - `create_conversation()` — `INSERT ... ON CONFLICT (conversation_id) DO NOTHING` — idempotent, safe to call on every message
+  - `conversation_exists()` — `SELECT 1` check
+  - `save_message()` — `INSERT INTO messages` + `UPDATE conversations SET last_active_at` in same transaction
+  - `get_conversations_by_user()` / `get_messages_by_conversation()` — `RealDictCursor` returns rows as dicts directly
+- All timestamps stored with `timezone.utc` — no daylight saving issues
+- 30-day expiry applied on insert: `expires_at = now + timedelta(days=30)`
+
+**setup_db.py — new**
+- One-time schema initialisation script: `python setup_db.py`
+- Creates `conversations` and `messages` tables using `CREATE TABLE IF NOT EXISTS` — idempotent, safe to re-run
+- Foreign key constraint on `messages.conversation_id → conversations.conversation_id`
+
+**requirements.txt — updated**
+- Added `psycopg2-binary`
+
+**test_scripts/test_database.py — new**
+- 8 integration tests — hits the live API then queries PostgreSQL directly via psycopg2 to verify data was actually stored
+- `clean()` helper deletes test rows before each run so tests are idempotent
+
+| Test | What it verifies |
+|---|---|
+| 1 | `conversations` row created on first message, `user_id` correct, `expires_at` is 30 days out |
+| 2 | Both user and assistant `messages` rows saved, content and `intent_category` correct |
+| 3 | Message count grows correctly across turns (4 rows after 2 turns) |
+| 4 | Conversation row not duplicated on follow-up messages |
+| 5 | `last_active_at` updated on each new message |
+| 6 | `GET /history/{user_id}` returns correct conversations from DB |
+| 7 | `GET /history/{conversation_id}/messages` returns messages in chronological order |
+| 8 | `ticket_op` `intent_category` stored correctly |
+
+**test_scripts/test_full_flow.py — new**
+- 8 end-to-end scenario tests against the live FastAPI endpoint
+- Covers all intent types and edge cases across the full pipeline
+- Results saved to `test_scripts/results_test_full_flow.txt`
+
+| Scenario | What it covers |
+|---|---|
+| 1 | Greeting — status and category |
+| 2 | Technical across 3 turns — contextualizer rewrites vague follow-ups |
+| 3 | Complete `ticket_op` — straight through, no clarification |
+| 4 | Incomplete `ticket_op` → pending state → resume on detail |
+| 5 | Ticket view without ID → ask for ID → resume |
+| 6 | `greeting_with_intent` — greet + process underlying request |
+| 7 | `multi_intent` — ask user to split |
+| 8 | History limit — confirms cap at 10 entries after 6 turns |
+
+#### Key Design Decisions
+
+**Connection pooling over a single connection**
+Production will have multiple concurrent requests. A single shared connection would block or corrupt under load. `SimpleConnectionPool` with 1–10 connections handles concurrency without the overhead of a full async pool. Each function checks out and returns a connection — no connection is held open between requests.
+
+**ON CONFLICT DO NOTHING on conversation insert**
+Removes the need to call `conversation_exists()` before every `create_conversation()`. The DB enforces uniqueness on `conversation_id` — inserting a duplicate is a no-op. Simpler and race-condition-free.
+
+**UTC timestamps throughout**
+`datetime.now(timezone.utc)` used everywhere. Avoids daylight saving edge cases and ensures consistent ordering when messages arrive from different timezones.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — test_redis.py, all 5 tests passing
+- [x] PostgreSQL integration testing — test_database.py, all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history, tested
+- [x] End-to-end flow testing — test_full_flow.py, 8 scenarios passing
+- [ ] Decision Engine — route intent to correct handler
+- [ ] Prompt Builder — assemble history + RAG chunks + query into LLM payload
+- [ ] LLM Response Generation — final LLM call, returns real answer to user
+- [ ] RAG Module — embed query, search ChromaDB, retrieve chunks (blocked: no DB access)
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+- [ ] RabbitMQ Integration — publish to ticket/notification queues (blocked: no infra config)
+
+---
+
+### Day 9 — 2026-06-19
+
+#### What was done
+
+**New device setup**
+- Project migrated to new Windows device via OneDrive sync
+- Created new virtual environment `yenv` — `wenv` carried over via OneDrive but its compiled extensions and interpreter path are tied to the old machine
+- Both Redis and PostgreSQL now run in Docker containers:
+  - `docker run -d --name aiorc-postgres -e POSTGRES_USER=aiorc -e POSTGRES_PASSWORD=aiorc123 -e POSTGRES_DB=aiorc_db -p 5432:5432 postgres:latest`
+  - `docker run -d --name aiorc-redis -p 6379:6379 redis:latest`
+
+**requirements.txt — redis version unpinned**
+- `redis==3.5.3` → `redis`
+- Root cause: `redis 3.5.3` imports `distutils.version.StrictVersion` at module load. `distutils` was removed in Python 3.12. Project runs on Python 3.14 — import fails on startup with `ModuleNotFoundError: No module named 'distutils'`
+- Fix: unpin to latest (`redis 5.x`) which dropped the `distutils` dependency
+
+#### Key Notes
+
+**Venvs are not portable between machines**
+Venvs embed the absolute path to the Python interpreter at creation time (`pyvenv.cfg: home = ...`). Compiled C extensions (.pyd files) are also machine-specific. A fresh `python -m venv yenv` + `pip install -r requirements.txt` is required on a new device even if the old `wenv` folder synced over.
+
+**Docker preferred over native installs for backing services**
+Running Redis and PostgreSQL in Docker avoids Windows service management and version conflicts. Named containers (`aiorc-postgres`, `aiorc-redis`) restart with `docker start <name>` after reboots.
+
+---
+
 ## Environment Setup
 
 ```bash
+# Start backing services (Docker)
+docker start aiorc-postgres aiorc-redis
+
+# First-time only — create DB tables
+python setup_db.py
+
 # Install dependencies
 pip install -r requirements.txt
 
 # Run server
-uvicorn main:app --reload
+uvicorn main:app --reload --reload-exclude yenv
 ```
 
 **.env file:**
 ```
 GROQ_API_KEY=your_key_here
+REDIS_URL=redis://localhost:6379
+DATABASE_URL=postgresql://aiorc:aiorc123@localhost:5432/aiorc_db
+```
+
+**First-time Docker setup:**
+```bash
+docker run -d --name aiorc-postgres -e POSTGRES_USER=aiorc -e POSTGRES_PASSWORD=aiorc123 -e POSTGRES_DB=aiorc_db -p 5432:5432 postgres:latest
+docker run -d --name aiorc-redis -p 6379:6379 redis:latest
 ```
 
 **Test via Swagger UI:** `http://127.0.0.1:8000/docs`
@@ -529,6 +657,5 @@ GROQ_API_KEY=your_key_here
 
 - Swap `groq` → `anthropic` in requirements.txt and intent_classifier.py before production
 - Remove `verify=False` from httpx client before production
-- Redis setup needed before context management module is built
 - ServiceNow API credentials to be provided separately
 - RabbitMQ connection config to be provided by infrastructure team
