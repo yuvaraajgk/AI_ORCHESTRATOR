@@ -1,0 +1,103 @@
+# VPN Connectivity Issues
+
+## Overview
+
+A Virtual Private Network (VPN) allows employees to securely access company resources while working remotely. If the VPN is not connected, you may not be able to access internal applications, shared drives, intranet websites, or remote desktops. Most VPN issues can be resolved by checking your internet connection, login credentials, or restarting the VPN application.
+
+---
+
+## Common Issues and Troubleshooting
+
+### Issue: Unable to Connect to the VPN
+
+**Symptoms**
+
+* Unable to establish VPN connection
+* Connection timed out
+* VPN remains on "Connecting"
+
+**Resolution**
+
+1. Verify that your internet connection is working by opening a public website.
+2. Disconnect and reconnect to Wi-Fi if necessary.
+3. Close the VPN application completely and reopen it.
+4. Restart your computer.
+5. Confirm that you are using the correct VPN server.
+6. If the issue continues for more than 15 minutes, contact the IT Service Desk.
+
+---
+
+### Issue: Incorrect Username or Password
+
+**Symptoms**
+
+* Authentication Failed
+* Invalid Credentials
+
+**Resolution**
+
+1. Ensure Caps Lock is turned off.
+2. Enter your company username correctly.
+3. Verify you are using your latest password.
+4. If you recently changed your password, wait up to 10 minutes for synchronization.
+5. Reset your password or contact IT if your account is locked.
+
+---
+
+### Issue: VPN Disconnects Frequently
+
+**Symptoms**
+
+* VPN disconnects unexpectedly.
+* Company applications lose connection.
+
+**Resolution**
+
+1. Check whether your internet connection is stable.
+2. Move closer to your Wi-Fi router or connect using an Ethernet cable.
+3. Close applications consuming high bandwidth.
+4. Disconnect and reconnect the VPN.
+5. Restart your computer.
+
+---
+
+### Issue: Connected to VPN but Cannot Access Company Resources
+
+**Symptoms**
+
+* VPN status shows Connected.
+* Internal websites or shared drives do not load.
+
+**Resolution**
+
+1. Wait one to two minutes after connecting.
+2. Disconnect and reconnect the VPN.
+3. Restart the affected application.
+4. Verify whether coworkers can access the same resource.
+5. Contact IT with the application name and any displayed error message.
+
+---
+
+## Frequently Asked Questions
+
+**Q: Can I use the VPN on public Wi-Fi?**
+Yes. Always connect to the VPN before accessing company resources.
+
+**Q: Why does the VPN ask for Multi-Factor Authentication (MFA)?**
+MFA provides an additional layer of security by requiring a verification code or approval.
+
+**Q: How long should I troubleshoot before contacting IT?**
+If the issue remains unresolved after 15 minutes, contact the IT Service Desk.
+
+**Q: Do I need the VPN while working from the office?**
+No. VPN is generally not required while connected to the corporate office network.
+
+---
+
+## Important Notes
+
+* Never share your VPN username, password, or MFA verification code.
+* Use only the company-approved VPN application.
+* Keep the VPN client updated.
+* Report unexpected MFA prompts immediately.
+* Planned maintenance may temporarily interrupt VPN access.

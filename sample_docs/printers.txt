@@ -1,0 +1,140 @@
+# Printer and Printing Issues
+
+## Overview
+
+Printers are used to print business documents, reports, invoices, and forms. Printing issues are commonly caused by connectivity problems, paper jams, low toner, incorrect printer selection, or temporary hardware errors. Most printing problems can be resolved with a few simple troubleshooting steps before contacting the IT Service Desk.
+
+---
+
+## Common Issues and Troubleshooting
+
+### Issue: Printer is Offline
+
+**Symptoms**
+
+* Printer status displays **"Offline."**
+* Print jobs remain in the queue.
+* Unable to send documents to the printer.
+
+**Resolution**
+
+1. Ensure the printer is powered on.
+2. Verify that the printer is connected to the office network or your computer.
+3. Check that all network or USB cables are securely connected.
+4. Restart the printer.
+5. Restart your computer.
+6. Print a test page to verify the connection.
+7. If the printer still appears offline, contact the IT Service Desk.
+
+---
+
+### Issue: Print Job Stuck in Queue
+
+**Symptoms**
+
+* Document remains in **"Printing"** status.
+* Nothing is printed even though the printer is available.
+
+**Resolution**
+
+1. Open the print queue on your computer.
+2. Cancel all pending print jobs.
+3. Wait a few seconds for the queue to clear.
+4. Send the document to print again.
+5. If the issue persists, restart both the printer and your computer.
+6. Try printing a different document to determine whether the problem is document-specific.
+
+---
+
+### Issue: Paper Jam
+
+**Symptoms**
+
+* Printer displays **"Paper Jam."**
+* Printing stops unexpectedly.
+* Paper is partially stuck inside the printer.
+
+**Resolution**
+
+1. Open the printer cover according to the manufacturer's instructions.
+2. Carefully remove the jammed paper without tearing it.
+3. Check the paper tray for folded or damaged paper.
+4. Close all covers securely.
+5. Reload the paper tray if necessary.
+6. Print a test page to confirm that the issue has been resolved.
+
+**Note:** If the paper cannot be removed safely, do not force it. Contact the IT Service Desk for assistance.
+
+---
+
+### Issue: Poor Print Quality
+
+**Symptoms**
+
+* Faded text.
+* Streaks or smudges on printed pages.
+* Missing sections of text or images.
+* Blurry or uneven printing.
+
+**Resolution**
+
+1. Check whether the toner or ink cartridge is low.
+2. Ensure the correct paper type is loaded.
+3. Run the printer's cleaning or maintenance function if available.
+4. Print another test page.
+5. Replace the toner or ink cartridge if instructed.
+6. Contact IT if print quality does not improve after basic maintenance.
+
+---
+
+### Issue: Wrong Printer Selected
+
+**Symptoms**
+
+* Document prints in another department.
+* Nothing prints from the expected printer.
+
+**Resolution**
+
+1. Open the Print dialog box.
+2. Verify that the correct printer is selected.
+3. Set the correct printer as the default printer if necessary.
+4. Send the print job again.
+5. Contact IT if the required printer is not listed.
+
+---
+
+## Frequently Asked Questions
+
+**Q: Why is my document printing on the wrong printer?**
+
+Your computer may remember the last printer you used. Always verify the selected printer before clicking **Print**.
+
+---
+
+**Q: Can I install my own printer?**
+
+Only company-approved printers may be connected to the corporate network. Contact the IT Service Desk if you need a printer installed.
+
+---
+
+**Q: Why is printing taking a long time?**
+
+Large documents, color printing, high-resolution images, or heavy network usage can delay print jobs. Wait a few minutes before sending the document again.
+
+---
+
+**Q: What should I do if the printer displays a hardware error?**
+
+Restart the printer once. If the error remains, note the error message and contact the IT Service Desk.
+
+---
+
+## Important Notes
+
+* Use only approved paper sizes and printer supplies.
+* Do not force open printer covers or pull jammed paper aggressively.
+* Collect confidential documents immediately after printing.
+* Report low toner or recurring printer issues before the printer becomes unusable.
+* Personal printing may be restricted according to company policy.
+* If the printer repeatedly experiences the same issue, report the printer name or asset ID along with the error message when contacting IT.
