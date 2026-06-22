@@ -125,3 +125,20 @@ Project moved to a new Windows device via OneDrive sync. The virtual environment
 Redis and PostgreSQL are now both running in Docker containers rather than native Windows installs. This makes the setup reproducible — spinning up both services is two `docker run` commands and they persist across reboots with `docker start`.
 
 One dependency issue discovered: the pinned `redis==3.5.3` package uses a Python module (`distutils`) that was removed in Python 3.12. Since the project runs on Python 3.14, it crashed on startup with an import error. The fix was to unpin the redis version so pip installs the latest release (5.x), which dropped that dependency years ago.
+
+Also built the first real end-to-end response. Until now every message returned `"processing..."`. A new `greeting_handler.py` module calls the Groq LLM directly for greeting intents, passing the conversation history as context so returning users get a personalised response. The chatbot now gives a real reply to greetings for the first time.
+
+---
+
+### Day 10 — 2026-06-22
+**Building the RAG knowledge base**
+
+Three things done today.
+
+**First — sample documents created.** Three IT support knowledge base documents were written covering VPN issues, password resets, and printer problems. Each document is structured with an overview, step-by-step troubleshooting per issue, FAQs, and important notes. Sections are separated by `---` which is used as the chunk boundary when indexing.
+
+**Second — RAG database set up with pgvector.** Rather than adding a separate ChromaDB service, pgvector was used — it's a PostgreSQL extension that adds vector storage and similarity search to a standard Postgres database. A dedicated Docker container (`aiorc-rag`) was created on port 5433, completely separate from the conversation database on port 5432. The documents table stores the text of each chunk alongside its 768-dimension embedding vector.
+
+**Third — documents embedded and indexed.** A seeding script reads the document files, splits them into chunks at section boundaries, and runs each chunk through Nomic Embed Text v1.5 — a local embedding model that runs entirely on the machine with no API key. The model uses task-specific prefixes: `search_document:` when indexing chunks and `search_query:` when embedding a user query at search time. This asymmetric approach produces better retrieval results than using the same prefix for both.
+
+The `rag.py` module exposes a single `search(query)` function. It embeds the query, runs a cosine similarity search via pgvector, and returns the top 5 most relevant chunks. Nothing outside this file knows the table structure — when production documents arrive with a different schema, only `rag.py` changes. The RAG module is now fully built and ready to be wired into the technical response handler.

@@ -3,7 +3,7 @@ uvicorn
 groq
 redis
 python-dotenv
-chromadb
+sentence-transformers
 pika
 pydantic
 psycopg2-binary

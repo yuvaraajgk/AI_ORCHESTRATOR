@@ -610,6 +610,17 @@ Removes the need to call `conversation_exists()` before every `create_conversati
 - Root cause: `redis 3.5.3` imports `distutils.version.StrictVersion` at module load. `distutils` was removed in Python 3.12. Project runs on Python 3.14 — import fails on startup with `ModuleNotFoundError: No module named 'distutils'`
 - Fix: unpin to latest (`redis 5.x`) which dropped the `distutils` dependency
 
+**greeting_handler.py — new**
+- New module with one function: `generate_greeting_response(message, history)`
+- Calls Groq LLM with a lightweight system prompt — friendly IT support assistant, 1-2 sentences
+- Conversation history passed as chat messages so returning users get contextual responses
+- `max_tokens=100` — greeting responses are intentionally short
+
+**main.py — greeting responses wired in**
+- Imported `generate_greeting_response`
+- Step 7 now branches on intent category: `greeting` calls the handler, everything else stays `"processing..."`
+- First fully working end-to-end response flow — chatbot now returns a real reply for greetings
+
 #### Key Notes
 
 **Venvs are not portable between machines**
@@ -620,14 +631,105 @@ Running Redis and PostgreSQL in Docker avoids Windows service management and ver
 
 ---
 
+### Day 10 — 2026-06-22
+
+#### What was built
+
+**sample_docs/ — new folder**
+- Three plain-text IT support knowledge base documents:
+  - `vpn.txt` — VPN connectivity issues, authentication failures, disconnections
+  - `password_reset.txt` — forgotten passwords, account lockouts, sync delays
+  - `printers.txt` — offline printers, paper jams, print queue issues, quality problems
+- Each document structured with overview, per-issue troubleshooting steps, FAQs, and notes
+- Sections separated by `---` — used as chunk boundaries in seed_rag.py
+
+**setup_rag_db.py — new**
+- One-time initialisation script for the RAG database
+- Enables the `pgvector` extension, creates the `documents` table with a `vector(768)` column
+- Separate from `setup_db.py` — touches only the RAG database, never the conversation database
+
+**seed_rag.py — new**
+- Reads every `.txt` file from `sample_docs/`, splits each into chunks using `---` as the boundary
+- Each chunk is embedded using Nomic Embed Text v1.5 via `sentence-transformers` locally — no API key needed
+- `search_document:` prefix added to each chunk before embedding — required by Nomic's training format
+- Inserts chunk text + 768-dimension vector into the `documents` table via `%s::vector` cast
+- Clears existing rows before each run — re-seeding is safe and idempotent
+- Dev-only utility: production documents will be populated by a separate ETL process
+
+**rag.py — new**
+- Exposes one function: `search(query, top_k=5) → list[str]`
+- Embeds the query with `search_query:` prefix using the same Nomic model
+- Runs cosine similarity search via pgvector's `<=>` operator, returns top 5 most relevant chunks
+- Uses `SimpleConnectionPool` — same pattern as `database.py`
+- All schema details are internal to this file — nothing outside `rag.py` knows the table structure
+
+**requirements.txt — updated**
+- `chromadb` → `sentence-transformers` (pgvector used instead, no ChromaDB needed)
+- `einops` added — required by Nomic Embed Text v1.5
+
+**New Docker container — aiorc-rag**
+- Separate PostgreSQL instance with pgvector on port 5433
+- `pgvector/pgvector:pg17` image — pgvector built in, unlike `postgres:latest`
+- Completely isolated from `aiorc-postgres` (conversation storage) on port 5432
+- `RAG_DATABASE_URL` added to `.env`
+
+#### Key Design Decisions
+
+**Separate Docker container for RAG, not the same DB**
+Keeps conversation storage and document storage fully isolated. Production may use a completely different database instance, schema, or even provider for the vector store. Separation enforces this boundary from day one.
+
+**pgvector over ChromaDB**
+Same PostgreSQL stack already in use — no additional service to run or manage. pgvector's `<=>` cosine similarity operator is a single SQL clause. ChromaDB would have required a separate process and dependency.
+
+**rag.py as the only file that knows the schema**
+`search(query) → list[str]` is the contract. When production documents arrive with a different table structure, only `rag.py` is updated — everything else (main.py, technical_handler.py) stays the same. Same pattern as `context_manager.py` abstracting Redis and PostgreSQL.
+
+**Nomic Embed Text v1.5 with task prefixes**
+Model trained with `search_document:` and `search_query:` prefixes for asymmetric retrieval — documents and queries are embedded differently for better semantic matching. Skipping the prefix would silently produce lower-quality results.
+
+**Chunking by `---` section boundaries**
+Each chunk is a complete, self-contained section (one issue + symptoms + resolution, or one FAQ block). Character-based chunking would split mid-paragraph, producing chunks that lose context at boundaries. Section-based chunks are directly useful when retrieved.
+
+**Corporate SSL proxy workaround for HuggingFace download**
+Nomic model download goes through HuggingFace Hub which uses `httpx` internally. Monkey-patched `httpx.Client.__init__` to default `verify=False` before imports — same workaround pattern used for Groq. Only needed on first run; model is cached locally after download.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — all 5 tests passing
+- [x] PostgreSQL integration testing — all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history
+- [x] End-to-end flow testing — 8 scenarios passing
+- [x] Greeting Responses — real LLM replies for greeting intents
+- [x] RAG Module — pgvector setup, Nomic embeddings, document seeding, search function
+- [ ] Technical Responses — LLM answer using RAG chunks + history (next)
+- [ ] Decision Engine — route intent to correct handler
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+- [ ] RabbitMQ Integration — publish to ticket/notification queues (blocked: no infra config)
+
+---
+
 ## Environment Setup
 
 ```bash
 # Start backing services (Docker)
-docker start aiorc-postgres aiorc-redis
+docker start aiorc-postgres aiorc-redis aiorc-rag
 
-# First-time only — create DB tables
+# First-time only — create conversation DB tables
 python setup_db.py
+
+# First-time only — create RAG DB tables
+python setup_rag_db.py
+
+# First-time only — seed documents into RAG DB
+python seed_rag.py
 
 # Install dependencies
 pip install -r requirements.txt
@@ -641,12 +743,14 @@ uvicorn main:app --reload --reload-exclude yenv
 GROQ_API_KEY=your_key_here
 REDIS_URL=redis://localhost:6379
 DATABASE_URL=postgresql://aiorc:aiorc123@localhost:5432/aiorc_db
+RAG_DATABASE_URL=postgresql://aiorc:aiorc123@localhost:5433/aiorc_rag_db
 ```
 
 **First-time Docker setup:**
 ```bash
 docker run -d --name aiorc-postgres -e POSTGRES_USER=aiorc -e POSTGRES_PASSWORD=aiorc123 -e POSTGRES_DB=aiorc_db -p 5432:5432 postgres:latest
 docker run -d --name aiorc-redis -p 6379:6379 redis:latest
+docker run -d --name aiorc-rag -e POSTGRES_USER=aiorc -e POSTGRES_PASSWORD=aiorc123 -e POSTGRES_DB=aiorc_rag_db -p 5433:5432 pgvector/pgvector:pg17
 ```
 
 **Test via Swagger UI:** `http://127.0.0.1:8000/docs`
