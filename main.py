@@ -7,6 +7,7 @@ from cache import get_pending, set_pending, clear_pending
 from query_validator import validate_intent
 from query_contextualizer import contextualize
 from greeting_handler import generate_greeting_response
+from technical_handler import generate_technical_response
 
 app = FastAPI()
 
@@ -58,7 +59,8 @@ async def receive_message(payload: UserMessage):
         # ── Step 4: handle greeting + another intent ──────────────────────────
         # greet the user and process the real intent underneath
         if intent["category"] == "greeting_with_intent":
-            intent = intent["other"]
+            other = intent["other"]
+            intent = other if isinstance(other, dict) else {"category": other}
             intent["user_id"] = payload.user_id
             intent["conversation_id"] = payload.conversation_id
             intent["greeted"] = True
@@ -94,8 +96,10 @@ async def receive_message(payload: UserMessage):
 
     if intent["category"] == "greeting":
         assistant_response = generate_greeting_response(payload.message, history)
+    elif intent["category"] == "technical":
+        assistant_response = generate_technical_response(query, history, greeted=intent.get("greeted", False))
     else:
-        # placeholder — will be replaced by decision engine → RAG → LLM
+        # placeholder — ticket_op will route to RabbitMQ/ServiceNow
         assistant_response = "processing..."
     record_assistant_response(payload.conversation_id, assistant_response)
 
