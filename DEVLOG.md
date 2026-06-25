@@ -757,6 +757,68 @@ docker run -d --name aiorc-rag -e POSTGRES_USER=aiorc -e POSTGRES_PASSWORD=aiorc
 
 ---
 
+### Day 11 — 2026-06-23
+
+#### What was built
+
+**technical_handler.py — new**
+- New module with one function: `generate_technical_response(query, history, greeted)`
+- Calls `rag.search(query)` — retrieves top 5 relevant chunks from the knowledge base
+- Builds a multi-part prompt:
+  1. System prompt — IT support assistant, answer only from provided excerpts, suggest IT Service Desk if insufficient info
+  2. Retrieved chunks injected as a user message labelled "Knowledge base"
+  3. Short assistant acknowledgement — primes the LLM to treat chunks as reference before reading history
+  4. Full conversation history
+  5. User's current query as the final message
+- `max_tokens=400` — enough for detailed troubleshooting answers
+- If `greeted: True` — prepends `"Hello! "` to the response (handles `greeting_with_intent` flow)
+
+**main.py — technical responses wired in**
+- Imported `generate_technical_response`
+- Step 7 now routes `technical` intents to the handler with the contextualized query, history, and greeted flag
+- Chatbot now returns real document-grounded answers for technical questions end-to-end
+
+**main.py — greeting_with_intent bug fixed**
+- When `greeting_with_intent` is classified, the LLM occasionally returns `"other"` as a plain string (`"technical"`) instead of a full dict (`{"category": "technical"}`)
+- This caused `TypeError: 'str' object does not support item assignment` when setting `intent["user_id"]`
+- Fixed with an isinstance check: `intent = other if isinstance(other, dict) else {"category": other}`
+
+#### Key Design Decisions
+
+**RAG chunks injected before history in the prompt**
+The LLM reads the knowledge base excerpts first, then the conversation history, then the current query. This ordering ensures the LLM treats the retrieved content as its reference material rather than letting the conversation history overshadow it.
+
+**System prompt instructs fallback to IT Service Desk**
+If no relevant chunks are retrieved (e.g. query is outside the knowledge base), the LLM is explicitly told to say so and direct the user to the IT Service Desk rather than hallucinating an answer.
+
+**Hardcoded `---` chunk separator identified as a limitation**
+Current `seed_rag.py` splits documents using `---` as a boundary — this only works because sample docs were manually formatted. Production KB articles (ServiceNow, SharePoint, PDFs) won't have this marker. A paragraph-based chunking strategy (`\n\n` splits with a max character limit) has been designed as the replacement — does not require editing access to source documents. To be implemented before real documents are connected.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — all 5 tests passing
+- [x] PostgreSQL integration testing — all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history
+- [x] End-to-end flow testing — 8 scenarios passing
+- [x] Greeting Responses — real LLM replies for greeting intents
+- [x] RAG Module — pgvector setup, Nomic embeddings, document seeding, search function
+- [x] Technical Responses — RAG + LLM grounded answers for technical intents
+- [ ] Paragraph-based chunking — replace hardcoded `---` separator in seed_rag.py
+- [ ] Similarity threshold — skip LLM call if top RAG result is below confidence score
+- [ ] Decision Engine — route intent to correct handler
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+- [ ] RabbitMQ Integration — publish to ticket/notification queues (blocked: no infra config)
+
+---
+
 ## Notes & Reminders
 
 - Swap `groq` → `anthropic` in requirements.txt and intent_classifier.py before production

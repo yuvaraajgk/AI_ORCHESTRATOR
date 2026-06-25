@@ -142,3 +142,16 @@ Three things done today.
 **Third — documents embedded and indexed.** A seeding script reads the document files, splits them into chunks at section boundaries, and runs each chunk through Nomic Embed Text v1.5 — a local embedding model that runs entirely on the machine with no API key. The model uses task-specific prefixes: `search_document:` when indexing chunks and `search_query:` when embedding a user query at search time. This asymmetric approach produces better retrieval results than using the same prefix for both.
 
 The `rag.py` module exposes a single `search(query)` function. It embeds the query, runs a cosine similarity search via pgvector, and returns the top 5 most relevant chunks. Nothing outside this file knows the table structure — when production documents arrive with a different schema, only `rag.py` changes. The RAG module is now fully built and ready to be wired into the technical response handler.
+
+---
+
+### Day 11 — 2026-06-23
+**Technical responses live — chatbot now answers IT questions end-to-end**
+
+Two things built today, one bug fixed.
+
+**First — technical response handler built.** When a user asks a technical question, the system now retrieves the most relevant sections from the knowledge base, builds a prompt combining those sections with the conversation history, and calls the LLM to produce a grounded answer. The LLM is instructed to only answer from the retrieved content — if nothing relevant was found, it tells the user to contact the IT Service Desk instead of making something up. For messages like *"Hi, my VPN is down"* (greeting + technical), the system handles both in one reply — greets the user and answers the question.
+
+**Second — a bug in greeting_with_intent handling was fixed.** When a message combines a greeting with a real request, the LLM occasionally returns the underlying intent as a plain word (`"technical"`) instead of a structured object. This caused the app to crash when trying to attach user and conversation IDs to it. Added a type check to handle both formats safely.
+
+**Also identified — chunking limitation.** The current document seeding script splits files using `---` as a section boundary, which only worked because the sample documents were manually formatted that way. Real KB articles from ServiceNow or SharePoint won't have this marker. A paragraph-based approach has been designed that splits on double newlines and respects a max character limit — no editing access to the source documents required. Will be implemented before real documents are connected.
