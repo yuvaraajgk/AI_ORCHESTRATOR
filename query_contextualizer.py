@@ -1,10 +1,14 @@
 import httpx
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Groq(http_client=httpx.Client(verify=False))
+client = OpenAI(
+    base_url="https://ncpdev-tmp.olamagri.com/ollama/v1",
+    api_key="ollama",
+    http_client=httpx.Client(verify=False)
+)
 
 SYSTEM_PROMPT = """
 You are a query rewriter for an enterprise support chatbot. Output ONLY the rewritten query, nothing else.
@@ -22,7 +26,7 @@ def contextualize(message: str, history: list) -> str:
     history_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history)
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama3.1:8b",
         max_tokens=100,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},

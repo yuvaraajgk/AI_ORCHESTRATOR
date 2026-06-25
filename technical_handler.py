@@ -1,11 +1,15 @@
 import httpx
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 from rag import search
 
 load_dotenv(override=True)
 
-client = Groq(http_client=httpx.Client(verify=False))
+client = OpenAI(
+    base_url="https://ncpdev-tmp.olamagri.com/ollama/v1",
+    api_key="ollama",
+    http_client=httpx.Client(verify=False)
+)
 
 SYSTEM_PROMPT = """You are an IT support assistant for an enterprise.
 Answer the user's question directly and concisely using the provided information.
@@ -27,7 +31,7 @@ def generate_technical_response(query: str, history: list, greeted: bool = False
     messages.append({"role": "user", "content": query})
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama3.1:8b",
         max_tokens=400,
         messages=messages
     )

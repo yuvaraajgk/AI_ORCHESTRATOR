@@ -1,11 +1,15 @@
 import json
 import httpx
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-client = Groq(http_client=httpx.Client(verify=False))
+client = OpenAI(
+    base_url="https://ncpdev-tmp.olamagri.com/ollama/v1",
+    api_key="ollama",
+    http_client=httpx.Client(verify=False)
+)
 
 SYSTEM_PROMPT = """
 You are an intent classifier for an enterprise support chatbot. Output ONLY a JSON object.
@@ -23,7 +27,7 @@ Single intent categories:
 
 def classify_intent(message: str) -> dict:
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama3.1:8b",
         max_tokens=200,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -32,4 +36,9 @@ def classify_intent(message: str) -> dict:
     )
     print(f"Prompt Tokens: {response.usage.prompt_tokens}")
     raw = response.choices[0].message.content.strip()
-    return json.loads(raw)
+    print(f"Classifier raw response: {raw}")
+    start = raw.find("{")
+    end = raw.rfind("}") + 1
+    if start == -1 or end == 0:
+        raise ValueError(f"No JSON found in classifier response: {raw!r}")
+    return json.loads(raw[start:end])
