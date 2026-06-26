@@ -819,9 +819,85 @@ Current `seed_rag.py` splits documents using `---` as a boundary — this only w
 
 ---
 
+### Day 12 — 2026-06-24
+
+#### What was changed
+
+**technical_handler.py — system prompt tightened**
+- Removed "using the knowledge base excerpts provided" from the system prompt
+- Root cause: LLM was echoing its instruction source back into user-facing responses ("Based on the knowledge base excerpts...") — visible in live testing
+- New instruction: "Answer the user's question directly and concisely using the provided information."
+- Added explicit rule: "Do not reference the knowledge base or excerpts in your response."
+- Fallback tightened: "If the information is insufficient, say you don't have details on that and advise them to contact the IT Service Desk."
+
+#### Key Notes
+
+**Corporate SSL proxy (Netskope) started blocking Groq**
+- Netskope `Mindsprint-AI-Block-All` policy began blocking all calls to `api.groq.com`
+- Previously, `verify=False` on the httpx client was sufficient — proxy was doing SSL inspection (MITM) but allowing traffic through
+- What changed: Netskope updated its cloud app database to classify Groq as a Generative AI app, triggering the existing block policy automatically — no IT change, no code change on our end
+- Result: all Groq API calls receive a Netskope HTML block page — `groq.PermissionDeniedError`
+- Same policy will catch any external AI API (Anthropic, OpenAI, OpenRouter) — `verify=False` cannot bypass an application-level content block
+
+---
+
+### Day 13 — 2026-06-25
+
+#### What was changed
+
+**Switched LLM provider from Groq to Ollama**
+- Groq API blocked by corporate proxy — replaced with Ollama instance at `https://ncpdev-tmp.olamagri.com/ollama`
+- Dev-only change — production will still use Anthropic Claude as originally planned
+- `groq` package removed from `requirements.txt`, replaced with `openai`
+- Ollama implements the OpenAI-compatible API (`/v1/chat/completions`) — same `client.chat.completions.create()` calls, no interface changes needed
+- Four files updated: `intent_classifier.py`, `query_contextualizer.py`, `greeting_handler.py`, `technical_handler.py`
+  - `from groq import Groq` → `from openai import OpenAI`
+  - Client: `OpenAI(base_url="https://ncpdev-tmp.olamagri.com/ollama/v1", api_key="ollama", http_client=httpx.Client(verify=False))`
+  - Model: `llama-3.3-70b-versatile` → `llama3.1:8b`
+
+**intent_classifier.py — JSON extraction hardened**
+- `llama3.1:8b` (8b parameter model) less reliably outputs pure JSON compared to the 70b — wraps responses in markdown or adds explanatory text
+- Added extraction: find first `{` and last `}` in the raw response before passing to `json.loads()`
+- Added `print(f"Classifier raw response: {raw}")` for diagnostics during dev
+- Raises `ValueError` with full raw response if no JSON object is found at all
+
+#### Key Design Decisions
+
+**OpenAI package over direct httpx calls for Ollama**
+Ollama implements the OpenAI-compatible API. Using the `openai` Python package with a custom `base_url` keeps the interface identical to what was there with Groq — no changes to how completions are called or how responses are parsed. The `openai` package also works with OpenRouter and any other OpenAI-compatible provider, making future switches a one-line client change.
+
+**JSON extraction rather than prompt hardening**
+The alternative to extracting JSON from the response is to make the classifier prompt stricter ("output ONLY a JSON object, no other text"). This was already in the prompt and didn't work reliably with the smaller model. Extraction is the safe fallback — it works regardless of what the model adds around the JSON.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — all 5 tests passing
+- [x] PostgreSQL integration testing — all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history
+- [x] End-to-end flow testing — 8 scenarios passing
+- [x] Greeting Responses — real LLM replies for greeting intents
+- [x] RAG Module — pgvector setup, Nomic embeddings, document seeding, search function
+- [x] Technical Responses — RAG + LLM grounded answers for technical intents
+- [ ] Paragraph-based chunking — replace hardcoded `---` separator in seed_rag.py
+- [ ] Similarity threshold — skip LLM call if top RAG result is below confidence score
+- [ ] ticket_op handler — publish to RabbitMQ (blocked: no infra config)
+- [ ] ServiceNow Integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+- [ ] RabbitMQ Integration — publish to ticket/notification queues (blocked: no infra config)
+
+---
+
 ## Notes & Reminders
 
-- Swap `groq` → `anthropic` in requirements.txt and intent_classifier.py before production
+- LLM provider is currently Ollama (`llama3.1:8b`) — dev only, swap to `anthropic` in requirements.txt and all handler files before production
 - Remove `verify=False` from httpx client before production
+- `GROQ_API_KEY` in `.env` is no longer used — can be removed
 - ServiceNow API credentials to be provided separately
 - RabbitMQ connection config to be provided by infrastructure team

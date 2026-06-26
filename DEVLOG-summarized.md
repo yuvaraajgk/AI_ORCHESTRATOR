@@ -155,3 +155,23 @@ Two things built today, one bug fixed.
 **Second — a bug in greeting_with_intent handling was fixed.** When a message combines a greeting with a real request, the LLM occasionally returns the underlying intent as a plain word (`"technical"`) instead of a structured object. This caused the app to crash when trying to attach user and conversation IDs to it. Added a type check to handle both formats safely.
 
 **Also identified — chunking limitation.** The current document seeding script splits files using `---` as a section boundary, which only worked because the sample documents were manually formatted that way. Real KB articles from ServiceNow or SharePoint won't have this marker. A paragraph-based approach has been designed that splits on double newlines and respects a max character limit — no editing access to the source documents required. Will be implemented before real documents are connected.
+
+---
+
+### Day 12 — 2026-06-24
+**Fixing response tone and hitting the first network block**
+
+Live testing revealed a tone problem: the LLM kept prefacing answers with phrases like *"Based on the knowledge base excerpts..."* — leaking internal system language into what users see. The system prompt in `technical_handler.py` was updated to instruct the LLM to answer directly without referencing where the information came from. A small change, but important for the product feeling polished.
+
+Same day, the corporate network proxy (Netskope) started blocking all calls to the Groq API. The proxy was previously allowing traffic through while doing SSL inspection — the `verify=False` workaround was enough. Netskope has now updated its cloud app database to classify Groq as a Generative AI tool, which triggered the existing `Mindsprint-AI-Block-All` policy automatically. The block is at the application level, not SSL — `verify=False` has no effect on it. Any external AI API (Anthropic, OpenAI, OpenRouter) will hit the same wall on the corporate network.
+
+---
+
+### Day 13 — 2026-06-25
+**Switching to Ollama to get past the network block**
+
+With Groq blocked, the LLM calls needed a new provider that doesn't go through the corporate proxy. Switched to an Ollama instance running on an internal server. Ollama implements the same OpenAI-compatible API that Groq used, so the code change was contained — swapped the Groq Python package for the OpenAI package, pointed the client at the Ollama endpoint, and changed the model name to `llama3.1:8b`. Four files needed updating, nothing else in the pipeline changed.
+
+One issue surfaced immediately: `llama3.1:8b` is a much smaller model than the 70b used before, and it doesn't always follow the "output JSON only" instruction. The intent classifier started failing when the model wrapped its JSON in markdown or added explanatory text around it. Fixed by extracting the JSON object from wherever it appears in the response, rather than assuming the entire response is valid JSON.
+
+This is a temporary dev workaround — production will still use Anthropic Claude as originally planned.
