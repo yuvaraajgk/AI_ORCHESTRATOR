@@ -894,10 +894,135 @@ The alternative to extracting JSON from the response is to make the classifier p
 
 ---
 
+### Day 14 — 2026-06-26
+
+#### What was done
+
+**Two new sample documents added**
+- `email_issues.txt` — Outlook login problems, send/receive failures, sync delays, attachment errors
+- `software_installation.txt` — enterprise software install requests, permissions, silent install failures
+
+Knowledge base expanded from 3 to 5 topics. Both follow the same structure as existing docs. Pending a `seed_rag.py` run to index them into pgvector.
+
+**Feature design — KB gap detection and auto-ticket loop**
+
+Full loop designed for handling questions the knowledge base cannot answer:
+
+1. RAG search runs as normal — cosine distance scores exposed alongside chunks
+2. Score check: if the top result's distance exceeds a threshold, the KB has no relevant answer
+3. System auto-raises a ticket (instead of LLM hallucinating or saying "I don't know") containing the user's original query
+4. Developer investigates, resolves, fills in resolution notes in ServiceNow
+5. `POST /kb/resolved` endpoint receives the resolution (ServiceNow webhook or manual POST during dev), embeds it, inserts into pgvector
+6. Same question in future hits the KB and is answered normally — no ticket raised
+
+Design points:
+- `rag.py` exposes cosine distance scores alongside chunks — threshold is a float comparison, no AI needed
+- Auto-created tickets carry `kb_gap=True` and `original_query` to distinguish them from user-initiated tickets
+- KB injection uses the same Nomic embedding pipeline as `seed_rag.py` — no new components needed
+- Mock `POST /kb/resolved` endpoint built first; real ServiceNow webhook wired in when credentials arrive
+
+**Minor improvements identified**
+- Ollama URL and model name hardcoded in 4 files — should be `OLLAMA_BASE_URL` + `OLLAMA_MODEL` in `.env`
+- `GROQ_API_KEY` still in `.env` — no longer used
+- Global httpx monkey-patch in `rag.py` and `seed_rag.py` serves no purpose at runtime — SentenceTransformer doesn't use httpx for inference; remove it
+- `seed_rag.py` always runs `DELETE FROM documents` before seeding — will break once KB injection adds documents; needs incremental/upsert approach
+- `pending:*` Redis keys have no TTL — abandoned pending state could intercept a user's next message days later; `session:*` keys don't need TTL (size-bounded by the 10-entry limit)
+
+---
+
+### Day 15 — 2026-06-29
+
+#### What was built
+
+Ollama server unavailable today — no AI features accessible. All work done was pure Python + PostgreSQL.
+
+**ticket_handler.py — new**
+
+Full mock ticket operation handler with real PostgreSQL persistence.
+
+| Function | What it does |
+|---|---|
+| `create_ticket(description, user_id, conversation_id, kb_gap, original_query)` | Inserts ticket row, returns INC number |
+| `get_ticket(ticket_id)` | Fetches ticket by INC ID |
+| `update_ticket(ticket_id, update_details)` | Appends update notes to description, sets status `in_progress` |
+| `close_ticket(ticket_id)` | Sets status to `closed` |
+| `handle_ticket_op(intent)` | Entry point from `main.py` — routes action, returns natural language response string |
+| `_generate_ticket_id()` | `COUNT(*) + 1` zero-padded to 7 digits: `INC0000001`, `INC0000002`, ... |
+
+Tickets persist across server restarts — a ticket created in one session can be viewed, updated, or closed in any future session by INC number.
+
+`kb_gap` and `original_query` fields are in the schema now, ready for the KB injection feature designed on Day 14.
+
+**setup_db.py — tickets table added**
+
+```sql
+CREATE TABLE IF NOT EXISTS tickets (
+    id               VARCHAR(36)   PRIMARY KEY,
+    ticket_id        VARCHAR(20)   UNIQUE NOT NULL,
+    user_id          VARCHAR(100)  NOT NULL,
+    conversation_id  VARCHAR(100)  NOT NULL,
+    status           VARCHAR(20)   NOT NULL DEFAULT 'open',
+    description      TEXT          NOT NULL,
+    resolution       TEXT,
+    kb_gap           BOOLEAN       NOT NULL DEFAULT FALSE,
+    original_query   TEXT,
+    created_at       TIMESTAMP     NOT NULL,
+    updated_at       TIMESTAMP     NOT NULL
+)
+```
+
+`setup_db.py` re-run to apply the table.
+
+**main.py — `"processing..."` removed**
+`ticket_op` now routes to `handle_ticket_op(intent)`. The placeholder is gone.
+
+#### Key Design Decisions
+
+**Tickets stored in PostgreSQL, not in-memory**
+In-memory storage resets on server restart — useless for dev testing where you need to create a ticket and then view/update/close it across sessions. PostgreSQL gives genuine persistence keyed by INC number.
+
+**Sequential INC numbers**
+Random UUIDs would be hard to use in manual testing. Sequential padded numbers (`INC0000001`) are easy to reference and look realistic. When ServiceNow is wired in, the INC number will be ServiceNow's own — the mock IDs are discarded at that point.
+
+**`kb_gap` and `original_query` added now, not later**
+Including them in the initial schema avoids a migration when the KB injection feature is built. The fields default to `FALSE` / `NULL` for all user-initiated tickets — no impact on existing behaviour.
+
+**Single `handle_ticket_op` entry point**
+`main.py` passes the intent dict and gets back a string. All action routing, DB calls, and response formatting stay inside `ticket_handler.py`. When ServiceNow replaces the mock, only the internals change.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — all 5 tests passing
+- [x] PostgreSQL integration testing — all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history
+- [x] End-to-end flow testing — 8 scenarios passing
+- [x] Greeting Responses — real LLM replies for greeting intents
+- [x] RAG Module — pgvector setup, Nomic embeddings, document seeding, search function
+- [x] Technical Responses — RAG + LLM grounded answers for technical intents
+- [x] ticket_op handler — mock CRUD with PostgreSQL persistence, sequential INC numbers
+- [ ] Minor improvements — Ollama URL/model to .env, remove GROQ_API_KEY, remove httpx monkey-patch, fix seed_rag.py incremental seeding, seed new docs
+- [ ] pending:* Redis TTL — add short TTL to prevent stale pending state
+- [ ] KB gap detection — cosine distance threshold in rag.py, branch to auto-ticket when below threshold
+- [ ] KB injection endpoint — POST /kb/resolved → embed resolution → pgvector insert
+- [ ] RabbitMQ integration — replace mock ticket creation with queue publish (blocked: no infra config)
+- [ ] ServiceNow integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+
+---
+
 ## Notes & Reminders
 
-- LLM provider is currently Ollama (`llama3.1:8b`) — dev only, swap to `anthropic` in requirements.txt and all handler files before production
+- LLM provider is currently Ollama (`llama3.1:8b`) at `https://ncpdev-tmp.olamagri.com/ollama/v1` — dev only, swap to Anthropic Claude before production
 - Remove `verify=False` from httpx client before production
-- `GROQ_API_KEY` in `.env` is no longer used — can be removed
+- `GROQ_API_KEY` in `.env` is no longer used — remove it
+- Ollama URL and model name are hardcoded in 4 files — move to `.env` before they change
+- `seed_rag.py` nukes the documents table on every run — fix before KB injection feature is built
 - ServiceNow API credentials to be provided separately
 - RabbitMQ connection config to be provided by infrastructure team

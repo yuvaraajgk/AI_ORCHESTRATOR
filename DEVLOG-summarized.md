@@ -175,3 +175,29 @@ With Groq blocked, the LLM calls needed a new provider that doesn't go through t
 One issue surfaced immediately: `llama3.1:8b` is a much smaller model than the 70b used before, and it doesn't always follow the "output JSON only" instruction. The intent classifier started failing when the model wrapped its JSON in markdown or added explanatory text around it. Fixed by extracting the JSON object from wherever it appears in the response, rather than assuming the entire response is valid JSON.
 
 This is a temporary dev workaround — production will still use Anthropic Claude as originally planned.
+
+---
+
+### Day 14 — 2026-06-26
+**Designing the self-healing knowledge base loop**
+
+Two new knowledge base documents were added — Outlook/email issues and software installation — bringing the total to five topics. They need to be indexed into pgvector but the logic was clear enough to plan around.
+
+The main work today was designing a feature that closes a gap in the current system: what happens when a user asks something the knowledge base doesn't cover? Right now the LLM either hallucinates or says "I don't know." Neither is acceptable in a support context.
+
+The solution is a closed loop. When the RAG search returns results that are too dissimilar to the user's question (measured by cosine distance score), the system automatically raises a support ticket containing the original query — no user action required. A developer picks it up, resolves it, and fills in the answer. That answer then gets embedded and inserted back into the knowledge base. The next time anyone asks the same question, the system answers it directly. No ticket raised, no developer needed.
+
+The feature has three parts: a threshold check in the RAG search (pure SQL), an auto-ticket creation path in the technical handler, and a new `/kb/resolved` endpoint that receives resolutions and injects them into pgvector. The injection uses the exact same Nomic embedding pipeline already in use — no new infrastructure required.
+
+---
+
+### Day 15 — 2026-06-29
+**Building the ticket handler — first real ticket operations**
+
+Ollama was unavailable today so anything requiring LLM calls was off the table. Used the time to build the ticket operation handler instead — no AI involved, pure Python and PostgreSQL.
+
+Until today, every ticket request returned `"processing..."`. Now the system handles all four ticket actions for real. Create raises a ticket and returns an INC number the user can reference. View retrieves the ticket status and description. Update appends notes and marks it in progress. Close sets it to closed. All of this persists in PostgreSQL — a ticket created now can be looked up after a server restart, which makes manual testing across sessions actually possible.
+
+INC numbers are sequential and zero-padded (`INC0000001`, `INC0000002`, ...). When ServiceNow is eventually wired in, these mock IDs are replaced by ServiceNow's own numbering — the rest of the code doesn't change.
+
+The ticket table was also designed with the next feature in mind. Two extra columns — `kb_gap` and `original_query` — are already in the schema. When the KB injection feature is built (Day 14 design), auto-raised tickets will carry these fields so the injection endpoint knows what resolution text to embed and what query to associate it with. No migration needed later.
