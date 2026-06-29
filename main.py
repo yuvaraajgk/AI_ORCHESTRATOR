@@ -8,6 +8,7 @@ from query_validator import validate_intent
 from query_contextualizer import contextualize
 from greeting_handler import generate_greeting_response
 from technical_handler import generate_technical_response
+from ticket_handler import handle_ticket_op
 
 app = FastAPI()
 
@@ -98,9 +99,8 @@ async def receive_message(payload: UserMessage):
         assistant_response = generate_greeting_response(payload.message, history)
     elif intent["category"] == "technical":
         assistant_response = generate_technical_response(query, history, greeted=intent.get("greeted", False))
-    else:
-        # placeholder — ticket_op will route to RabbitMQ/ServiceNow
-        assistant_response = "processing..."
+    elif intent["category"] == "ticket_op":
+        assistant_response = handle_ticket_op(intent)
     record_assistant_response(payload.conversation_id, assistant_response)
 
     return {

@@ -30,6 +30,22 @@ cur.execute("""
     )
 """)
 
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS tickets (
+        id               VARCHAR(36)   PRIMARY KEY,
+        ticket_id        VARCHAR(20)   UNIQUE NOT NULL,
+        user_id          VARCHAR(100)  NOT NULL,
+        conversation_id  VARCHAR(100)  NOT NULL,
+        status           VARCHAR(20)   NOT NULL DEFAULT 'open',
+        description      TEXT          NOT NULL,
+        resolution       TEXT,
+        kb_gap           BOOLEAN       NOT NULL DEFAULT FALSE,
+        original_query   TEXT,
+        created_at       TIMESTAMP     NOT NULL,
+        updated_at       TIMESTAMP     NOT NULL
+    )
+""")
+
 conn.commit()
 cur.close()
 conn.close()

@@ -1,0 +1,114 @@
+# Software Installation Requests
+
+## Overview
+
+Employees may require software applications to perform their daily work, such as productivity tools, development software, design applications, or business-specific programs. To maintain security and compliance, only company-approved software may be installed on company-managed devices. Unauthorized software installations are prohibited.
+
+---
+
+## Common Issues and Troubleshooting
+
+### Issue: Unable to Install Software
+
+**Symptoms**
+
+* Installation fails with an error message.
+* Installer closes unexpectedly.
+* "Administrator privileges required" appears.
+
+**Resolution**
+
+1. Verify that the software has been approved by your department or manager.
+2. Ensure you are using the official installation package provided by the company.
+3. Close all running applications before starting the installation.
+4. Restart your computer and try again.
+5. If prompted for administrator credentials, do not attempt to bypass the request. Contact the IT Service Desk.
+6. Report the exact error message if the installation continues to fail.
+
+---
+
+### Issue: Software Request Requires Approval
+
+**Symptoms**
+
+* Requested software is unavailable in the company software portal.
+* Installation request remains pending.
+
+**Resolution**
+
+1. Submit a software request through the company service portal.
+2. Provide the software name, version, and business justification.
+3. Wait for manager or department approval if required.
+4. IT will review compatibility, licensing, and security requirements.
+5. Once approved, IT will install the software or provide installation instructions.
+
+---
+
+### Issue: License Activation Failed
+
+**Symptoms**
+
+* Software requests an activation key.
+* Trial period has expired.
+* "License not found" message appears.
+
+**Resolution**
+
+1. Ensure you are connected to the corporate network or VPN.
+2. Restart the application.
+3. Sign in using your company account if required.
+4. Verify that your department has an active software license.
+5. Contact IT if the software still cannot be activated.
+
+---
+
+### Issue: Installed Software Crashes or Will Not Open
+
+**Symptoms**
+
+* Application closes immediately after opening.
+* Error message appears during startup.
+
+**Resolution**
+
+1. Restart your computer.
+2. Verify that your operating system meets the software requirements.
+3. Install any pending Windows or macOS updates.
+4. Reinstall the application if instructed by IT.
+5. Report the application name, version, and any error messages to the IT Service Desk.
+
+---
+
+## Frequently Asked Questions
+
+**Q: Can I install software myself?**
+
+Only if the software has been approved and you have the necessary permissions. Some applications require installation by IT.
+
+---
+
+**Q: How long does software approval take?**
+
+Approval times vary depending on licensing and management approval but are typically completed within one to three business days.
+
+---
+
+**Q: Why was my software request rejected?**
+
+Requests may be declined if the software poses security risks, duplicates existing tools, or does not meet company compliance requirements.
+
+---
+
+**Q: Can I use personal software on my work laptop?**
+
+No. Personal or unlicensed software should not be installed on company-owned devices unless explicitly approved.
+
+---
+
+## Important Notes
+
+* Install software only from approved company sources.
+* Never download applications from unknown websites.
+* Do not share software license keys with other employees.
+* Keep installed applications updated to the latest approved version.
+* Contact the IT Service Desk before installing any software that requires administrator privileges.

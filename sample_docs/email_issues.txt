@@ -1,0 +1,116 @@
+# Email and Outlook Issues
+
+## Overview
+
+Microsoft Outlook is the primary email application used for sending and receiving business communications, scheduling meetings, and managing calendars. Common issues include login problems, emails not sending or receiving, synchronization delays, missing mail, and attachment-related errors. Most problems can be resolved through basic troubleshooting.
+
+---
+
+## Common Issues and Troubleshooting
+
+### Issue: Unable to Send Emails
+
+**Symptoms**
+
+* Email remains in the Outbox.
+* "Send Failed" or similar error message appears.
+* Recipients do not receive your emails.
+
+**Resolution**
+
+1. Verify that your internet connection is active.
+2. Restart Outlook.
+3. Ensure your mailbox is not full.
+4. Check whether the attachment exceeds the company size limit.
+5. Try sending the email without attachments.
+6. Contact the IT Service Desk if emails continue to remain in the Outbox.
+
+---
+
+### Issue: Not Receiving Emails
+
+**Symptoms**
+
+* Expected emails do not appear.
+* Inbox does not update automatically.
+
+**Resolution**
+
+1. Click **Send/Receive** in Outlook.
+2. Check the Junk Email and Deleted Items folders.
+3. Verify that email filters or rules are not moving messages.
+4. Restart Outlook.
+5. Confirm with the sender that the email was successfully sent.
+6. Contact IT if no new emails are received for an extended period.
+
+---
+
+### Issue: Outlook Keeps Asking for Password
+
+**Symptoms**
+
+* Password prompt appears repeatedly.
+* Outlook cannot connect to the mailbox.
+
+**Resolution**
+
+1. Enter your current company password.
+2. Restart Outlook.
+3. Sign out and sign back into your Microsoft account.
+4. Restart your computer.
+5. Wait a few minutes if you recently changed your password.
+6. Contact IT if password prompts continue.
+
+---
+
+### Issue: Attachments Cannot Be Opened
+
+**Symptoms**
+
+* Attachment will not download.
+* Error appears when opening files.
+* Attachment is blocked.
+
+**Resolution**
+
+1. Save the attachment to your computer before opening it.
+2. Verify that the file type is supported.
+3. Ensure the file is not blocked by company security policies.
+4. Ask the sender to resend the attachment if it appears corrupted.
+5. Contact IT if the problem persists.
+
+---
+
+## Frequently Asked Questions
+
+**Q: Why is Outlook running slowly?**
+
+A large mailbox, numerous add-ins, or network issues can affect Outlook's performance. Restart the application and archive old emails if necessary.
+
+---
+
+**Q: Why can't I send large attachments?**
+
+Most organizations enforce attachment size limits. Use the company's approved file-sharing platform for large files.
+
+---
+
+**Q: Can I access Outlook from another device?**
+
+Yes, provided the device is approved by the company and you authenticate using your company credentials and Multi-Factor Authentication (MFA).
+
+---
+
+**Q: What should I do if I accidentally delete an email?**
+
+Check the Deleted Items folder first. If the email is not there, contact the IT Service Desk as soon as possible.
+
+---
+
+## Important Notes
+
+* Never open email attachments from unknown or suspicious senders.
+* Report phishing or suspicious emails immediately using the company's reporting process.
+* Avoid sharing confidential information unless the email is encrypted or approved by company policy.
+* Regularly clean your mailbox to prevent storage issues.
+* Always lock your computer when leaving your workstation to protect your email account.

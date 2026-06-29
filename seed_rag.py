@@ -40,7 +40,7 @@ for filename in sorted(os.listdir(DOCS_DIR)):
             (source, chunk, vector_str)
         )
 
-    print(f"  {filename} → {len(chunks)} chunks")
+    print(f"  {filename} -> {len(chunks)} chunks")
 
 conn.commit()
 cur.close()
