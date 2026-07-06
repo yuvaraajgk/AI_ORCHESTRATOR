@@ -1,3 +1,4 @@
+import os
 import httpx
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -5,8 +6,8 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 client = OpenAI(
-    base_url="https://ncpdev-tmp.olamagri.com/ollama/v1",
-    api_key="ollama",
+    base_url=os.getenv("CEREBRAS_BASE_URL"),
+    api_key=os.getenv("CEREBRAS_API_KEY"),
     http_client=httpx.Client(verify=False)
 )
 
@@ -19,7 +20,7 @@ def generate_greeting_response(message: str, history: list) -> str:
     messages.append({"role": "user", "content": message})
 
     response = client.chat.completions.create(
-        model="llama3.1:8b",
+        model=os.getenv("CEREBRAS_MODEL"),
         max_tokens=100,
         messages=messages
     )

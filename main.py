@@ -98,7 +98,12 @@ async def receive_message(payload: UserMessage):
     if intent["category"] == "greeting":
         assistant_response = generate_greeting_response(payload.message, history)
     elif intent["category"] == "technical":
-        assistant_response = generate_technical_response(query, history, greeted=intent.get("greeted", False))
+        assistant_response = generate_technical_response(
+            query, history,
+            greeted=intent.get("greeted", False),
+            user_id=intent.get("user_id", ""),
+            conversation_id=intent.get("conversation_id", "")
+        )
     elif intent["category"] == "ticket_op":
         assistant_response = handle_ticket_op(intent)
     record_assistant_response(payload.conversation_id, assistant_response)
