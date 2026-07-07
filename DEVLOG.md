@@ -1017,12 +1017,141 @@ Including them in the initial schema avoids a migration when the KB injection fe
 
 ---
 
+### Day 16 — 2026-07-03
+
+#### What was built
+
+**KB gap detection — rag.py + technical_handler.py**
+
+`rag.py` — SQL query updated to expose cosine distance scores alongside chunks:
+
+```sql
+SELECT content, embedding <=> %s::vector AS score
+FROM documents
+ORDER BY score
+LIMIT %s
+```
+
+Return type changed from `list[str]` to `tuple[list[str], list[float]]`. PostgreSQL allows referencing the output alias `score` in `ORDER BY` so the distance is computed only once.
+
+`technical_handler.py` — gap detection branch added before the LLM call:
+
+```python
+KB_GAP_THRESHOLD = 0.5
+
+chunks, scores = search(query)
+if not chunks or scores[0] > KB_GAP_THRESHOLD:
+    ticket_id = create_ticket(..., kb_gap=True, original_query=query)
+    return "I've raised ticket {ticket_id} for our IT team..."
+```
+
+`generate_technical_response()` signature extended with `user_id` and `conversation_id` parameters so the auto-created ticket has correct ownership. `main.py` updated to pass these down.
+
+`KB_GAP_THRESHOLD = 0.5` — tune after observing real scores via a `/kb/search` debug endpoint.
+
+**LLM provider switch — Ollama → Azure OpenAI → Cerebras**
+
+Attempted integration with the company's Azure OpenAI deployment (`dr-ai-dev-1001.openai.azure.com`, `gpt-4o`). Switched all 4 handler files to `AzureOpenAI` client. Blocked immediately by Netskope `Mindsprint-AI-Block-All` policy — Azure OpenAI is classified as "Microsoft Foundry" and caught by the same rule that blocked Groq.
+
+Switched to Cerebras (`api.cerebras.ai/v1`, `gpt-oss-120b`) — the only Production-tier model available on the account. Reverted all 4 handler files to standard `OpenAI` client with `base_url` pointing to Cerebras. All LLM credentials (`CEREBRAS_API_KEY`, `CEREBRAS_BASE_URL`, `CEREBRAS_MODEL`) centralised in `.env`.
+
+| File | Change |
+|---|---|
+| `intent_classifier.py` | `AzureOpenAI` → `OpenAI`, model from env var |
+| `query_contextualizer.py` | `AzureOpenAI` → `OpenAI`, model from env var |
+| `greeting_handler.py` | `AzureOpenAI` → `OpenAI`, model from env var |
+| `technical_handler.py` | `AzureOpenAI` → `OpenAI`, model from env var |
+
+#### Key Design Decisions
+
+**Gap threshold in code, not config**
+`KB_GAP_THRESHOLD = 0.5` is a named constant at the top of `technical_handler.py`. It's a tuning parameter — the value was chosen conservatively as a starting point. A `/kb/search` debug endpoint is planned to observe real query scores before committing to a final value.
+
+**Cerebras over other providers**
+External AI APIs (Anthropic, OpenAI, OpenRouter, Azure OpenAI) all hit the same Netskope block. Cerebras was not yet in Netskope's app database — request goes through. Production target remains Anthropic Claude; this is dev-only.
+
+#### Updated Module Roadmap
+
+- [x] Entry point — receive message from frontend
+- [x] Intent Classification — classify message into category
+- [x] Multi-intent & greeting_with_intent handling
+- [x] Intent testing — 100% accuracy on 20 test cases
+- [x] Context Management — Redis session store (real) + PostgreSQL message log (real)
+- [x] Redis integration testing — all 5 tests passing
+- [x] PostgreSQL integration testing — all 8 tests passing
+- [x] Query Validation — demand missing details for incomplete ticket requests
+- [x] Classifier prompt optimisation — 386 → 205 tokens, 100% accuracy held
+- [x] History window limit — last 10 entries (5 turns) passed to LLM
+- [x] Query Contextualizer — rewrite vague queries using conversation history
+- [x] End-to-end flow testing — 8 scenarios passing
+- [x] Greeting Responses — real LLM replies for greeting intents
+- [x] RAG Module — pgvector setup, Nomic embeddings, document seeding, search function
+- [x] Technical Responses — RAG + LLM grounded answers for technical intents
+- [x] ticket_op handler — mock CRUD with PostgreSQL persistence, sequential INC numbers
+- [x] KB gap detection — cosine distance threshold, auto-ticket on no relevant chunk
+- [x] LLM provider centralised in .env — endpoint, key, model all configurable
+- [ ] pending:* Redis TTL — add short TTL to prevent stale pending state
+- [ ] seed_rag.py incremental seeding — fix full table wipe
+- [ ] KB injection endpoint — POST /kb/resolved → embed resolution → pgvector insert
+- [ ] /kb/search debug endpoint — return chunks + scores for threshold tuning
+- [ ] RabbitMQ integration — replace mock ticket creation with queue publish (blocked)
+- [ ] ServiceNow integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+
+---
+
+### Day 17 — 2026-07-07
+
+#### What was done
+
+**seed_rag.py — incremental seeding (per-source upsert)**
+
+Replaced the global `DELETE FROM documents` at the top of the script with a per-source delete inside the loop:
+
+```python
+cur.execute("DELETE FROM documents WHERE source = %s", (source,))
+```
+
+Re-seeding a document file now only clears and replaces chunks for that specific source. KB-injected resolutions (which will have a different source) survive a re-seed. Previously, any re-seed would have wiped all injected documents.
+
+**Removed httpx global monkey-patch — replaced with HF_HUB_OFFLINE**
+
+`rag.py` and `seed_rag.py` had a module-level patch that overrode `httpx.Client.__init__` to force `verify=False` on all requests. The patch was originally added to handle the SSL proxy during the one-time HuggingFace model download. Removed it in both files.
+
+Replacement: `os.environ["HF_HUB_OFFLINE"] = "1"` set before the `sentence_transformers` import. This is the official HuggingFace mechanism for offline mode — tells the entire HuggingFace Hub stack to use the locally cached model without attempting any network calls. Cleaner and more targeted than a global httpx patch.
+
+Note: `local_files_only=True` on `SentenceTransformer` was tried first but did not work — the custom Nomic model code (`modeling_hf_nomic_bert.py`) calls `cached_file()` directly and bypasses the parameter. `HF_HUB_OFFLINE=1` works at the environment level and catches all paths.
+
+**Two new documents seeded into pgvector**
+
+`email_issues.txt` and `software_installation.txt` were added to `sample_docs/` on Day 14 but never indexed. With the incremental fix applied, ran `seed_rag.py` — both documents embedded and inserted without touching existing chunks.
+
+KB now covers 5 topics, 48 total chunks:
+
+| Document | Chunks |
+|---|---|
+| email_issues | 10 |
+| password_reset | 10 |
+| printers | 11 |
+| software_installation | 10 |
+| vpn | 7 |
+
+#### Updated Module Roadmap
+
+- [x] seed_rag.py incremental seeding — per-source upsert, injected docs preserved
+- [x] Remove httpx monkey-patch from rag.py / seed_rag.py
+- [x] Seed new documents — email_issues, software_installation (48 chunks total)
+- [ ] pending:* Redis TTL — add short TTL to prevent stale pending state
+- [ ] KB injection endpoint — POST /kb/resolved → embed resolution → pgvector insert
+- [ ] /kb/search debug endpoint — return chunks + scores for threshold tuning
+- [ ] RabbitMQ integration — replace mock ticket creation with queue publish (blocked)
+- [ ] ServiceNow integration — ticket CRUD via ServiceNow API (blocked: no credentials)
+
+---
+
 ## Notes & Reminders
 
-- LLM provider is currently Ollama (`llama3.1:8b`) at `https://ncpdev-tmp.olamagri.com/ollama/v1` — dev only, swap to Anthropic Claude before production
+- LLM provider is currently Cerebras (`gpt-oss-120b`) — dev only, swap to Anthropic Claude before production
 - Remove `verify=False` from httpx client before production
-- `GROQ_API_KEY` in `.env` is no longer used — remove it
-- Ollama URL and model name are hardcoded in 4 files — move to `.env` before they change
-- `seed_rag.py` nukes the documents table on every run — fix before KB injection feature is built
+- `KB_GAP_THRESHOLD = 0.5` in `technical_handler.py` — tune after observing real query scores
 - ServiceNow API credentials to be provided separately
 - RabbitMQ connection config to be provided by infrastructure team

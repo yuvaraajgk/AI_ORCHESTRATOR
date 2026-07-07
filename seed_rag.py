@@ -1,11 +1,5 @@
 import os
-import httpx
-
-_orig_init = httpx.Client.__init__
-def _no_ssl_init(self, *args, **kwargs):
-    kwargs.setdefault("verify", False)
-    _orig_init(self, *args, **kwargs)
-httpx.Client.__init__ = _no_ssl_init
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 import psycopg2
 from sentence_transformers import SentenceTransformer
@@ -19,8 +13,6 @@ model = SentenceTransformer("nomic-ai/nomic-embed-text-v1.5", trust_remote_code=
 conn = psycopg2.connect(os.getenv("RAG_DATABASE_URL"))
 cur = conn.cursor()
 
-cur.execute("DELETE FROM documents")
-
 for filename in sorted(os.listdir(DOCS_DIR)):
     if not filename.endswith(".txt"):
         continue
@@ -31,6 +23,8 @@ for filename in sorted(os.listdir(DOCS_DIR)):
         text = f.read()
 
     chunks = [c.strip() for c in text.split("---") if c.strip()]
+
+    cur.execute("DELETE FROM documents WHERE source = %s", (source,))
 
     for chunk in chunks:
         embedding = model.encode(f"search_document: {chunk}").tolist()

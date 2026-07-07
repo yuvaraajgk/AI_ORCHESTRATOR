@@ -1,11 +1,5 @@
 import os
-import httpx
-
-_orig_init = httpx.Client.__init__
-def _no_ssl_init(self, *args, **kwargs):
-    kwargs.setdefault("verify", False)
-    _orig_init(self, *args, **kwargs)
-httpx.Client.__init__ = _no_ssl_init
+os.environ["HF_HUB_OFFLINE"] = "1"
 
 from psycopg2.pool import SimpleConnectionPool
 from sentence_transformers import SentenceTransformer

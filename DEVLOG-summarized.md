@@ -201,3 +201,29 @@ Until today, every ticket request returned `"processing..."`. Now the system han
 INC numbers are sequential and zero-padded (`INC0000001`, `INC0000002`, ...). When ServiceNow is eventually wired in, these mock IDs are replaced by ServiceNow's own numbering — the rest of the code doesn't change.
 
 The ticket table was also designed with the next feature in mind. Two extra columns — `kb_gap` and `original_query` — are already in the schema. When the KB injection feature is built (Day 14 design), auto-raised tickets will carry these fields so the injection endpoint knows what resolution text to embed and what query to associate it with. No migration needed later.
+
+---
+
+### Day 16 — 2026-07-03
+**KB gap detection live + another LLM provider change**
+
+Two things done today.
+
+**First — KB gap detection built.** The RAG search in `rag.py` now returns cosine distance scores alongside the retrieved chunks. `technical_handler.py` checks whether the top score exceeds a threshold of `0.5` — if nothing relevant is found, the system automatically raises a support ticket tagged as a KB gap instead of passing an empty or irrelevant context to the LLM. The user gets an INC number back immediately. This is the first half of the self-healing KB loop designed on Day 14.
+
+**Second — LLM provider switched again.** Attempted to integrate the company's Azure OpenAI deployment (`gpt-4o`). The Netskope proxy blocked it under the same `Mindsprint-AI-Block-All` policy as Groq, this time classifying it as "Microsoft Foundry." Switched to Cerebras (`gpt-oss-120b`) — a cloud inference provider not yet in Netskope's app database. All four handler files updated, and LLM credentials (endpoint, key, model) centralised in `.env` so future provider changes touch one file instead of four.
+
+---
+
+### Day 17 — 2026-07-07
+**Knowledge base maintenance and seeding new documents**
+
+Two things done today.
+
+**First — LLM provider switch to Cerebras.** Azure OpenAI was blocked by Netskope under the "Microsoft Foundry" classification. Switched to Cerebras (`gpt-oss-120b`) which is not yet in Netskope's database. All four handler files updated, credentials centralised in `.env`.
+
+**Second — Knowledge base maintenance.** Fixed `seed_rag.py` to use per-source upsert instead of wiping the entire documents table. Previously, running the seed script would delete all KB-injected resolutions — a problem once the injection endpoint is live. Now each file only clears and replaces its own chunks, leaving everything else untouched.
+
+Removed the global httpx monkey-patch from `rag.py` and `seed_rag.py` that was forcing `verify=False` on all HTTP clients. Replaced with `HF_HUB_OFFLINE=1` — the official HuggingFace environment variable that forces the embedding model to use its local cache without contacting HuggingFace at all. `local_files_only=True` was tried first but didn't work because the custom Nomic model code bypasses it internally.
+
+With the fixes in place, ran `seed_rag.py` to index `email_issues.txt` and `software_installation.txt` — documents that had been sitting in the folder since Day 14 but were never seeded. The knowledge base now covers five topics across 48 chunks.

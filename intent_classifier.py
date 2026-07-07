@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import httpx
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -26,20 +27,39 @@ Single intent categories:
 """
 
 
+MAX_RETRIES = 3
+
+
 def classify_intent(message: str) -> dict:
-    response = client.chat.completions.create(
-        model=os.getenv("CEREBRAS_MODEL"),
-        max_tokens=200,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message}
-        ]
-    )
-    print(f"Prompt Tokens: {response.usage.prompt_tokens}")
-    raw = response.choices[0].message.content.strip()
-    print(f"Classifier raw response: {raw}")
-    start = raw.find("{")
-    end = raw.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise ValueError(f"No JSON found in classifier response: {raw!r}")
-    return json.loads(raw[start:end])
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        response = client.chat.completions.create(
+            model=os.getenv("CEREBRAS_MODEL"),
+            max_tokens=200,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": message}
+            ]
+        )
+        print(f"Prompt Tokens: {response.usage.prompt_tokens}")
+        raw = response.choices[0].message.content.strip()
+        print(f"Classifier raw response: {raw} (finish_reason={response.choices[0].finish_reason})")
+
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+
+        if start != -1 and end != 0:
+            try:
+                return json.loads(raw[start:end])
+            except json.JSONDecodeError as e:
+                last_error = e
+        else:
+            last_error = ValueError(f"No JSON found in classifier response: {raw!r}")
+
+        if attempt < MAX_RETRIES - 1:
+            wait = 2 ** (attempt + 1)  # 2s, 4s
+            print(f"Classifier returned malformed/truncated JSON (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {wait}s...")
+            time.sleep(wait)
+
+    raise ValueError(f"Classifier failed to return valid JSON after {MAX_RETRIES} attempts: {last_error}")
