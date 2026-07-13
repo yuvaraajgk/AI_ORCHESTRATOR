@@ -1,15 +1,4 @@
-import os
-import httpx
-from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
-client = OpenAI(
-    base_url=os.getenv("CEREBRAS_BASE_URL"),
-    api_key=os.getenv("CEREBRAS_API_KEY"),
-    http_client=httpx.Client(verify=False)
-)
+from llm_client import complete
 
 SYSTEM_PROMPT = "You are a friendly IT support assistant for an enterprise. Respond to greetings warmly and briefly. 1-2 sentences max."
 
@@ -19,9 +8,4 @@ def generate_greeting_response(message: str, history: list) -> str:
     messages += history
     messages.append({"role": "user", "content": message})
 
-    response = client.chat.completions.create(
-        model=os.getenv("CEREBRAS_MODEL"),
-        max_tokens=100,
-        messages=messages
-    )
-    return response.choices[0].message.content.strip()
+    return complete(messages, max_tokens=100)

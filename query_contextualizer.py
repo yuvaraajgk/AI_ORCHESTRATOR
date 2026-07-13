@@ -1,15 +1,4 @@
-import os
-import httpx
-from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
-
-client = OpenAI(
-    base_url=os.getenv("CEREBRAS_BASE_URL"),
-    api_key=os.getenv("CEREBRAS_API_KEY"),
-    http_client=httpx.Client(verify=False)
-)
+from llm_client import complete
 
 SYSTEM_PROMPT = """
 You are a query rewriter for an enterprise support chatbot. Output ONLY the rewritten query, nothing else.
@@ -26,12 +15,7 @@ def contextualize(message: str, history: list) -> str:
 
     history_text = "\n".join(f"{m['role'].capitalize()}: {m['content']}" for m in history)
 
-    response = client.chat.completions.create(
-        model=os.getenv("CEREBRAS_MODEL"),
-        max_tokens=100,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"History:\n{history_text}\n\nLatest message: {message}"}
-        ]
-    )
-    return response.choices[0].message.content.strip()
+    return complete([
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": f"History:\n{history_text}\n\nLatest message: {message}"}
+    ], max_tokens=100)

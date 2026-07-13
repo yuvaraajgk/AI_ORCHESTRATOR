@@ -1,17 +1,6 @@
-import os
-import httpx
-from openai import OpenAI
-from dotenv import load_dotenv
+from llm_client import complete
 from rag import search
 from ticket_handler import create_ticket
-
-load_dotenv(override=True)
-
-client = OpenAI(
-    base_url=os.getenv("CEREBRAS_BASE_URL"),
-    api_key=os.getenv("CEREBRAS_API_KEY"),
-    http_client=httpx.Client(verify=False)
-)
 
 # Cosine distance: 0.0 = identical, higher = less similar.
 # Tune this by observing scores on real queries via GET /kb/search.
@@ -60,13 +49,7 @@ def generate_technical_response(
     messages += history
     messages.append({"role": "user", "content": query})
 
-    response = client.chat.completions.create(
-        model=os.getenv("CEREBRAS_MODEL"),
-        max_tokens=400,
-        messages=messages
-    )
-
-    answer = response.choices[0].message.content.strip()
+    answer = complete(messages, max_tokens=400)
 
     if greeted:
         answer = "Hello! " + answer

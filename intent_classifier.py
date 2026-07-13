@@ -1,17 +1,6 @@
-import os
 import json
 import time
-import httpx
-from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv(override=True)
-
-client = OpenAI(
-    base_url=os.getenv("CEREBRAS_BASE_URL"),
-    api_key=os.getenv("CEREBRAS_API_KEY"),
-    http_client=httpx.Client(verify=False)
-)
+from llm_client import client, MODEL
 
 SYSTEM_PROMPT = """
 You are an intent classifier for an enterprise support chatbot. Output ONLY a JSON object.
@@ -35,7 +24,7 @@ def classify_intent(message: str) -> dict:
 
     for attempt in range(MAX_RETRIES):
         response = client.chat.completions.create(
-            model=os.getenv("CEREBRAS_MODEL"),
+            model=MODEL,
             max_tokens=200,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -43,8 +32,9 @@ def classify_intent(message: str) -> dict:
             ]
         )
         print(f"Prompt Tokens: {response.usage.prompt_tokens}")
-        raw = response.choices[0].message.content.strip()
-        print(f"Classifier raw response: {raw} (finish_reason={response.choices[0].finish_reason})")
+        content = response.choices[0].message.content
+        raw = content.strip() if content else ""
+        print(f"Classifier raw response: {raw!r} (finish_reason={response.choices[0].finish_reason})")
 
         start = raw.find("{")
         end = raw.rfind("}") + 1

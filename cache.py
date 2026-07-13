@@ -29,13 +29,18 @@ def append_to_history(conversation_id: str, role: str, content: str):
 
 # ── Pending state functions ────────────────────────────────────────────────────
 
+# a stale pending clarification (e.g. "what's the ticket ID?") shouldn't be able
+# to hijack a later, unrelated message days after the user abandoned the flow
+PENDING_TTL_SECONDS = 300
+
+
 def get_pending(conversation_id: str) -> dict | None:
     raw = redis_client.get(f"pending:{conversation_id}")
     return json.loads(raw) if raw else None
 
 
 def set_pending(conversation_id: str, intent: dict):
-    redis_client.set(f"pending:{conversation_id}", json.dumps(intent))
+    redis_client.set(f"pending:{conversation_id}", json.dumps(intent), ex=PENDING_TTL_SECONDS)
 
 
 def clear_pending(conversation_id: str):

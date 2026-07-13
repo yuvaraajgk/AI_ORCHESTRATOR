@@ -88,6 +88,22 @@ def update_ticket(ticket_id: str, update_details: str) -> bool:
         _put_conn(conn)
 
 
+def resolve_ticket(ticket_id: str, resolution: str) -> bool:
+    now = datetime.now(timezone.utc)
+    conn = _get_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE tickets SET resolution = %s, status = 'closed', updated_at = %s WHERE ticket_id = %s
+        """, (resolution, now, ticket_id.upper()))
+        updated = cur.rowcount > 0
+        conn.commit()
+        cur.close()
+        return updated
+    finally:
+        _put_conn(conn)
+
+
 def close_ticket(ticket_id: str) -> bool:
     now = datetime.now(timezone.utc)
     conn = _get_conn()
