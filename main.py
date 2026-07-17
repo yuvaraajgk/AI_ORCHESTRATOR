@@ -6,12 +6,11 @@ from intent_classifier import classify_intent
 from context_manager import get_history, record_user_message, record_assistant_response
 from database import get_conversations_by_user, get_messages_by_conversation
 from cache import get_pending, set_pending, clear_pending
-from query_validator import validate_intent
+from query_validator import validate_intent, is_affirmative
 from query_contextualizer import contextualize
 from greeting_handler import generate_greeting_response
 from technical_handler import generate_technical_response
-from ticket_handler import handle_ticket_op, get_ticket, resolve_ticket
-from rag import search, insert_document
+from ticket_handler import handle_ticket_op, create_kb_gap_ticket
 
 app = FastAPI()
 
@@ -20,11 +19,6 @@ class UserMessage(BaseModel):
     user_id: str
     conversation_id: str
     message: str
-
-
-class KbResolution(BaseModel):
-    ticket_id: str
-    resolution: str
 
 
 @app.post("/chat")
@@ -37,6 +31,26 @@ async def receive_message(payload: UserMessage):
     # if the user is answering a clarification question from the previous turn,
     # skip classification and merge the reply into the pending intent
     pending = get_pending(payload.conversation_id)
+
+    # ── Step 1a: resolve a pending "should I raise a ticket?" confirmation ────
+    # a prior technical answer couldn't be found in the KB and asked the user
+    # whether to raise a ticket — this message is their yes/no reply, not a
+    # new request to classify
+    if pending and pending.get("category") == "ticket_offer":
+        clear_pending(payload.conversation_id)
+        record_user_message(payload.conversation_id, payload.user_id, payload.message, "ticket_offer")
+
+        if is_affirmative(payload.message):
+            assistant_response = create_kb_gap_ticket(pending["query"], payload.user_id, payload.conversation_id)
+        else:
+            assistant_response = "No problem — let me know if there's anything else I can help with."
+
+        record_assistant_response(payload.conversation_id, assistant_response)
+        return {
+            "status": "received",
+            "session_history": history,
+            "response": assistant_response
+        }
 
     if pending:
         # user's message is the missing detail — fill it in
@@ -106,12 +120,13 @@ async def receive_message(payload: UserMessage):
     if intent["category"] == "greeting":
         assistant_response = generate_greeting_response(payload.message, history)
     elif intent["category"] == "technical":
-        assistant_response = generate_technical_response(
+        assistant_response, offer_query = generate_technical_response(
             query, history,
-            greeted=intent.get("greeted", False),
-            user_id=intent.get("user_id", ""),
-            conversation_id=intent.get("conversation_id", "")
+            greeted=intent.get("greeted", False)
         )
+        if offer_query:
+            # don't classify the next message — treat it as this offer's yes/no reply
+            set_pending(payload.conversation_id, {"category": "ticket_offer", "query": offer_query})
     elif intent["category"] == "ticket_op":
         assistant_response = handle_ticket_op(intent)
     record_assistant_response(payload.conversation_id, assistant_response)
@@ -139,34 +154,6 @@ async def get_conversation_messages(conversation_id: str):
     if not messages:
         raise HTTPException(status_code=404, detail="No messages found for this conversation")
     return {"conversation_id": conversation_id, "messages": messages}
-
-
-# ── Knowledge base ────────────────────────────────────────────────────────────
-
-@app.get("/kb/search")
-async def kb_search(query: str, top_k: int = 5):
-    # debug endpoint — inspect real cosine distance scores to calibrate
-    # technical_handler.py's KB_GAP_THRESHOLD instead of guessing at it
-    chunks, scores = search(query, top_k=top_k)
-    return {
-        "query": query,
-        "results": [{"content": c, "score": s} for c, s in zip(chunks, scores)]
-    }
-
-
-@app.post("/kb/resolved")
-async def resolve_kb_gap(payload: KbResolution):
-    # closes the loop on a kb_gap ticket: embeds the resolution into the RAG
-    # knowledge base so future matching questions get answered directly instead
-    # of raising another ticket, and records the resolution on the ticket itself
-    ticket = get_ticket(payload.ticket_id)
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-
-    insert_document(source=ticket["ticket_id"], content=payload.resolution)
-    resolve_ticket(payload.ticket_id, payload.resolution)
-
-    return {"status": "resolved", "ticket_id": ticket["ticket_id"]}
 
 
 # ── Frontend ────────────────────────────────────────────────────────────────

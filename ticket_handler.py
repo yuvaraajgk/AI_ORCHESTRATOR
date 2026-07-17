@@ -88,22 +88,6 @@ def update_ticket(ticket_id: str, update_details: str) -> bool:
         _put_conn(conn)
 
 
-def resolve_ticket(ticket_id: str, resolution: str) -> bool:
-    now = datetime.now(timezone.utc)
-    conn = _get_conn()
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE tickets SET resolution = %s, status = 'closed', updated_at = %s WHERE ticket_id = %s
-        """, (resolution, now, ticket_id.upper()))
-        updated = cur.rowcount > 0
-        conn.commit()
-        cur.close()
-        return updated
-    finally:
-        _put_conn(conn)
-
-
 def close_ticket(ticket_id: str) -> bool:
     now = datetime.now(timezone.utc)
     conn = _get_conn()
@@ -118,6 +102,21 @@ def close_ticket(ticket_id: str) -> bool:
         return updated
     finally:
         _put_conn(conn)
+
+
+def create_kb_gap_ticket(query: str, user_id: str, conversation_id: str) -> str:
+    ticket_id = create_ticket(
+        description=query,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        kb_gap=True,
+        original_query=query
+    )
+    return (
+        f"I've raised a ticket for you — **{ticket_id}**. "
+        f"Our IT team will look into it shortly. "
+        f"You can reference this ticket ID for updates."
+    )
 
 
 def handle_ticket_op(intent: dict) -> str:

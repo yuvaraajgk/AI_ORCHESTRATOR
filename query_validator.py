@@ -62,3 +62,17 @@ def _has_update_details(details: str) -> bool:
     # must have ticket ID + additional description beyond just the ID
     cleaned = re.sub(r'INC\d+', '', details, flags=re.IGNORECASE).strip()
     return len(cleaned) > 3
+
+
+_AFFIRMATIVE_PHRASES = (
+    "yes", "yeah", "yep", "yup", "sure", "please do", "go ahead",
+    "do it", "raise it", "raise a ticket", "create it", "create one",
+    "create a ticket", "ok", "okay", "correct", "affirmative", "please"
+)
+
+
+def is_affirmative(text: str) -> bool:
+    # deterministic yes/no gate for confirmation flows (e.g. "raise a ticket
+    # for this?") — no LLM call needed for a simple accept/decline
+    normalized = text.strip().lower().strip(".!? ")
+    return any(phrase in normalized for phrase in _AFFIRMATIVE_PHRASES)
