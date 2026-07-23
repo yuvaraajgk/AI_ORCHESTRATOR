@@ -1,6 +1,5 @@
-import os
+import sys
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from intent_classifier import classify_intent
 from context_manager import get_history, record_user_message, record_assistant_response
@@ -11,6 +10,11 @@ from query_contextualizer import contextualize
 from greeting_handler import generate_greeting_response
 from technical_handler import generate_technical_response
 from ticket_handler import handle_ticket_op, create_kb_gap_ticket
+
+# Windows defaults redirected (non-console) stdout to cp1252, which can't
+# encode the arrow characters in the debug prints below — force UTF-8.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 app = FastAPI()
 
@@ -24,18 +28,14 @@ class UserMessage(BaseModel):
 @app.post("/chat")
 async def receive_message(payload: UserMessage):
 
-    # load session history from Redis
     history = get_history(payload.conversation_id)
 
-    # ── Step 1: check if there's a pending incomplete intent ──────────────────
-    # if the user is answering a clarification question from the previous turn,
-    # skip classification and merge the reply into the pending intent
+    # ── Step 1: if this is a reply to the previous turn's clarification, skip
+    # classification and merge it into the pending intent instead ─────────────
     pending = get_pending(payload.conversation_id)
 
-    # ── Step 1a: resolve a pending "should I raise a ticket?" confirmation ────
-    # a prior technical answer couldn't be found in the KB and asked the user
-    # whether to raise a ticket — this message is their yes/no reply, not a
-    # new request to classify
+    # ── Step 1a: a pending "should I raise a ticket?" offer — this message is
+    # the yes/no reply, not a new request to classify ─────────────────────────
     if pending and pending.get("category") == "ticket_offer":
         clear_pending(payload.conversation_id)
         record_user_message(payload.conversation_id, payload.user_id, payload.message, "ticket_offer")
@@ -66,8 +66,7 @@ async def receive_message(payload: UserMessage):
 
         print(f"[{payload.conversation_id}] {payload.user_id}: {payload.message} → {intent}")
 
-        # ── Step 3: handle multi-intent ───────────────────────────────────────
-        # two real separate requests — ask user to send one at a time
+        # ── Step 3: two real separate requests — ask user to send one at a time
         if intent["category"] == "multi_intent":
             clarification = "I noticed more than one request in your message. Could you send them one at a time so I can help you better?"
             record_user_message(payload.conversation_id, payload.user_id, payload.message, intent["category"])
@@ -79,14 +78,18 @@ async def receive_message(payload: UserMessage):
                 "response": clarification
             }
 
-        # ── Step 4: handle greeting + another intent ──────────────────────────
-        # greet the user and process the real intent underneath
+        # ── Step 4: greeting + another intent — greet, then process the real intent
         if intent["category"] == "greeting_with_intent":
-            other = intent["other"]
-            intent = other if isinstance(other, dict) else {"category": other}
+            other = intent.get("other")
+            if other is None:
+                # classifier didn't produce the second intent — degrade to a
+                # plain greeting rather than crash on it
+                intent = {"category": "greeting"}
+            else:
+                intent = other if isinstance(other, dict) else {"category": other}
+                intent["greeted"] = True
             intent["user_id"] = payload.user_id
             intent["conversation_id"] = payload.conversation_id
-            intent["greeted"] = True
 
         # ── Step 5: validate — check if required details are present ──────────
         validation = validate_intent(intent)
@@ -129,6 +132,10 @@ async def receive_message(payload: UserMessage):
             set_pending(payload.conversation_id, {"category": "ticket_offer", "query": offer_query})
     elif intent["category"] == "ticket_op":
         assistant_response = handle_ticket_op(intent)
+    else:
+        # classifier returned an unrecognized category — log it and fail soft
+        print(f"[{payload.conversation_id}] Unrecognized intent category: {intent!r}")
+        assistant_response = "Sorry, I didn't quite catch that — could you rephrase your request?"
     record_assistant_response(payload.conversation_id, assistant_response)
 
     return {
@@ -154,13 +161,3 @@ async def get_conversation_messages(conversation_id: str):
     if not messages:
         raise HTTPException(status_code=404, detail="No messages found for this conversation")
     return {"conversation_id": conversation_id, "messages": messages}
-
-
-# ── Frontend ────────────────────────────────────────────────────────────────
-# serves the built Angular app (frontend/) from the same origin as the API,
-# so the browser needs no CORS setup. Registered last so it never shadows
-# the routes above — only requests that don't match /chat or /history/* fall
-# through to it. Run `npm run build` in frontend/ to (re)generate this folder.
-FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "frontend", "dist", "frontend", "browser")
-if os.path.isdir(FRONTEND_DIST):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

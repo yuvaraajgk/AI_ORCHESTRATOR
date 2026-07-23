@@ -64,9 +64,13 @@ check("conversation row created in DB", len(rows) == 1)
 if rows:
     check("user_id stored correctly", rows[0]["user_id"] == "u1",
           f"got: {rows[0]['user_id']}")
-    check("expires_at is 30 days ahead",
-          (rows[0]["expires_at"].replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days == 29,
-          f"expires_at: {rows[0]['expires_at']}")
+    # .days floors the gap, so "30 days minus a few seconds of test latency"
+    # legitimately reads as 29 almost always and occasionally 30 — check a
+    # tolerant range instead of an exact value that depends on sub-second timing
+    days_ahead = (rows[0]["expires_at"].replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)).days
+    check("expires_at is ~30 days ahead",
+          29 <= days_ahead <= 30,
+          f"expires_at: {rows[0]['expires_at']} ({days_ahead} days ahead)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

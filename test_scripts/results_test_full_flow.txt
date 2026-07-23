@@ -1,4 +1,4 @@
-Full Flow Test
+Full Flow Test — 2026-07-21 15:33
 ============================================================
 
 SCENARIO 1 — Greeting
@@ -7,7 +7,7 @@ SCENARIO 1 — Greeting
   Status  : received
   Intent  : greeting / -
   Query   : hey
-  Response: processing...
+  Response: Hello! How can I assist you with your IT issue today?
   History : 0 entries
   [PASS] status is received
   [PASS] category is greeting
@@ -18,23 +18,27 @@ SCENARIO 2 — Technical + query contextualizer across 3 turns
   Status  : received
   Intent  : technical / -
   Query   : my VPN is not connecting
-  Response: processing...
+  Response: 1. Verify that your internet connection is working by opening a public website.
+2. Disconnect and reconnect to Wi-Fi if necessary.
+3. Close the VPN application completely and reopen it.
+4. Restart your computer.
+5. Confirm that you are using the correct VPN server.
+6. If the issue continues for more than 15 minutes, contact the IT Service Desk.
   History : 0 entries
   [PASS] query unchanged on first message
 
   Message : I tried restarting it
   Status  : received
   Intent  : technical / -
-  Query   : VPN connection issues after restarting
-  Response: processing...
+  Query   : What was the result of the VPN after you restarted your computer?
+  Response: I don't have information on that in our knowledge base. Would you like me to raise a ticket so our IT team can look into it?
   History : 2 entries
   [PASS] query was rewritten
 
   Message : still the same issue
   Status  : received
-  Intent  : technical / -
-  Query   : VPN connection still not working after restarting
-  Response: processing...
+  Intent  : None / -
+  Response: No problem — let me know if there's anything else I can help with.
   History : 4 entries
   [PASS] query was rewritten
   [PASS] history has 4 entries
@@ -45,7 +49,7 @@ SCENARIO 3 — ticket_op complete, straight through
   Status  : received
   Intent  : ticket_op / create
   Query   : create a ticket for network issue
-  Response: processing...
+  Response: I've raised a ticket for you — **INC0000036**. Our IT team will look into it shortly. You can reference this ticket ID for updates or to close it once resolved.
   History : 0 entries
   [PASS] status is received
   [PASS] category is ticket_op
@@ -66,7 +70,7 @@ SCENARIO 4 — ticket_op incomplete, pending state, resume
   Status  : received
   Intent  : ticket_op / create
   Query   : printer not working on 3rd floor
-  Response: processing...
+  Response: I've raised a ticket for you — **INC0000037**. Our IT team will look into it shortly. You can reference this ticket ID for updates or to close it once resolved.
   History : 2 entries
   [PASS] status is received after detail
   [PASS] pending was cleared
@@ -86,7 +90,7 @@ SCENARIO 5 — ticket view without ID
   Status  : received
   Intent  : ticket_op / view
   Query   : INC001234
-  Response: processing...
+  Response: I couldn't find a ticket matching that ID. Please check the ticket number and try again.
   History : 2 entries
   [PASS] status is received after ID
   [PASS] pending was cleared
@@ -97,7 +101,7 @@ SCENARIO 6 — greeting_with_intent
   Status  : received
   Intent  : technical / -
   Query   : hi, my laptop won't turn on
-  Response: processing...
+  Response: I don't have information on that in our knowledge base. Would you like me to raise a ticket so our IT team can look into it?
   History : 0 entries
   [PASS] status is received
   [PASS] category is greeting_with_intent

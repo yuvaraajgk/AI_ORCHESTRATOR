@@ -119,14 +119,19 @@ check("response contains email-related content",
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n" + "="*60)
 print("TEST 6 — Question outside knowledge base")
-print("Expected: fallback directing user to IT Service Desk, no hallucinated steps")
+print("Expected: offers to raise a ticket instead of hallucinating an answer")
 print("="*60)
 clean("tech_t6")
 r = chat("u1", "tech_t6", "how do I book a conference room?")
 response = r.get("response", "")
 print(f"  Response preview: {response[:120]}...")
 check("response is non-empty", len(response.strip()) > 0)
-check("response does not reference knowledge base or excerpts", no_kb_reference(response))
+# unlike TESTS 1-5 (real grounded answers, where the LLM leaking "based on the
+# knowledge base..." would be a genuine instruction leak), this scenario
+# legitimately produces the fixed TICKET_OFFER_MESSAGE, which intentionally
+# says "knowledge base" as real user-facing copy — not a check to apply here
+check("response offers to raise a ticket rather than answering",
+      "raise a ticket" in response.lower())
 check("response directs to IT Service Desk or states no information available",
       any(w in response.lower() for w in ["service desk", "contact", "don't have", "do not have",
                                            "reach out", "not available", "unable to"]))

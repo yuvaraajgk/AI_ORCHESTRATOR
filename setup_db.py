@@ -46,6 +46,14 @@ cur.execute("""
     )
 """)
 
+# real sequence, not COUNT(*) — the old scheme collided with existing IDs
+# whenever a row was deleted. Seeded past the highest ID already in the table.
+cur.execute("""
+    SELECT COALESCE(MAX(CAST(SUBSTRING(ticket_id FROM 4) AS INTEGER)), 0) FROM tickets
+""")
+max_existing = cur.fetchone()[0]
+cur.execute(f"CREATE SEQUENCE IF NOT EXISTS ticket_id_seq START WITH {max_existing + 1}")
+
 conn.commit()
 cur.close()
 conn.close()

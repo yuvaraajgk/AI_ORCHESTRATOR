@@ -1,4 +1,5 @@
 import os
+import re
 import psycopg2.extras
 from psycopg2.pool import SimpleConnectionPool
 from datetime import datetime, timezone
@@ -19,13 +20,16 @@ def _put_conn(conn):
 
 
 def _generate_ticket_id() -> str:
+    # nextval() is atomic/monotonic — unlike COUNT(*)+1, it can't collide
+    # with an existing ID just because a row was deleted (see setup_db.py)
     conn = _get_conn()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM tickets")
-        count = cur.fetchone()[0]
+        cur.execute("SELECT nextval('ticket_id_seq')")
+        next_id = cur.fetchone()[0]
+        conn.commit()
         cur.close()
-        return f"INC{str(count + 1).zfill(7)}"
+        return f"INC{str(next_id).zfill(7)}"
     finally:
         _put_conn(conn)
 
@@ -53,6 +57,11 @@ def create_ticket(
         ))
         conn.commit()
         cur.close()
+    except Exception:
+        # a failed INSERT leaves the connection in an aborted transaction —
+        # must roll back before it goes back to the shared pool
+        conn.rollback()
+        raise
     finally:
         _put_conn(conn)
     return ticket_id
@@ -147,7 +156,6 @@ def handle_ticket_op(intent: dict) -> str:
         )
 
     if action == "update":
-        import re
         match = re.search(r'INC\d+', details, re.IGNORECASE)
         tid = match.group(0).upper() if match else ""
         update_text = re.sub(r'INC\d+', '', details, flags=re.IGNORECASE).strip(" ,.-")
@@ -165,6 +173,5 @@ def handle_ticket_op(intent: dict) -> str:
 
 
 def _extract_ticket_id(text: str) -> str:
-    import re
     match = re.search(r'INC\d+', text, re.IGNORECASE)
     return match.group(0).upper() if match else ""

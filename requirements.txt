@@ -4,6 +4,6 @@ openai
 redis
 python-dotenv
 sentence-transformers
-pika
+einops
 pydantic
 psycopg2-binary

@@ -13,7 +13,7 @@ def validate_intent(intent: dict) -> dict:
     if category == "ticket_op":
 
         if action == "create":
-            if not details.strip():
+            if not _has_create_details(details):
                 return {
                     "complete": False,
                     "missing": "issue description",
@@ -51,6 +51,16 @@ def validate_intent(intent: dict) -> dict:
                 }
 
     return {"complete": True}
+
+
+_CREATE_BOILERPLATE_PATTERN = re.compile(r'\b(create|raise|open|log)\b.{0,15}\bticket\b(\s+for)?', re.IGNORECASE)
+
+
+def _has_create_details(details: str) -> bool:
+    # "create a ticket" alone is non-empty but isn't a description — strip
+    # the request boilerplate and check what's left, like _has_update_details
+    cleaned = _CREATE_BOILERPLATE_PATTERN.sub('', details).strip(" ,.-")
+    return len(cleaned) > 3
 
 
 def _has_ticket_id(details: str) -> bool:
